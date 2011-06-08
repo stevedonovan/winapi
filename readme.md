@@ -1,6 +1,6 @@
 ## winapi A useful Windows API subset for Lua
 
-This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`.
+This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`. The API reference is [here](http://stevedonovan.github.com/winapi/api.html).
 
 ### Creating and working with Processes
 
@@ -39,7 +39,7 @@ For fine control over console programs, use `winapi.spawn` - you pass it the com
 
 If the command is invalid, then you will get an error message instead:
 
-    > = winapi.spawn 'frodo'
+*******    > = winapi.spawn 'frodo'
     nil     The system cannot find the file specified.
 
 This is what `execute` does under the hood, but doing it explicitly gives you more control.  For instance, the `wait` method of the process object can take an optional time-out parameter; if you wait too long for the process, it will return the process object and the string 'TIMEOUT'.
@@ -64,7 +64,7 @@ Having a `write` method means that, yes, you can capture an interactive process,
     >
     > proc:kill()
 
-(We also found it necessary in the [Lua for Windows]() project to switch off buffering for using Lua in SciTE)
+(We also found it necessary in the [Lua for Windows](http://code.google.com/p/luaforwindows/) project to switch off buffering for using Lua in SciTE)
 
 Note that reading the result also returns the prompt '>', which isn't so obvious if we're running Lua from within Lua itself. It's clearer when using Python:
 
@@ -95,7 +95,7 @@ The process object can provide more useful information:
     > = proc:run_times()
     0       31
 
-`working_size` gives you a lower and an upper bound on the process memory in kB; `run_times` gives you the time (in milliseconds) spent in the user process and in the kernel. So the time to calculate `40+2` twice is too fast to even register, and it has only spent 31 msec in the system.
+`working_size` gives you a lower and an upper bound on the process memory in kB (as committed pages); `run_times` gives you the time (in milliseconds) spent in the user process and in the kernel. So the time to calculate `40+2` twice is too fast to even register, and it has only spent 31 msec in the system.
 
 It is possible to wait on more than one process at a time. Consider this simple time-wasting script:
 
@@ -111,7 +111,9 @@ It takes me 0.743 seconds to do this. But running two such scripts in parallel i
     winapi.wait_for_processes(P,true)
     print(os.clock() - t)
 
-So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long. The second parameter means 'wait for all'; like the `wait` method, it has an optional timeout parameter.
+So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long.
+
+The second parameter of this function means 'wait for all'; like the `wait` method, it has an optional timeout parameter as well.
 
 ### Working with Windows
 
@@ -216,7 +218,7 @@ A useful operation is watching directories for changes. You specify the director
 
 Using a callback means that you can watch multiple directories and still respond to timers, etc.
 
- Finally, `copy_file` and 'move_file` are indispensible operations which are surprisingly tricky to write correctly in pure Lua. For general filesystem operations like finding the contents of folders, I suggest a more portable library like [LuaFileSystem](). However, you can get pretty far with a well-behaved way to call system commands:
+ Finally, `copy_file` and 'move_file` are indispensible operations which are surprisingly tricky to write correctly in pure Lua. For general filesystem operations like finding the contents of folders, I suggest a more portable library like [LuaFileSystem](http://keplerproject.github.com/luafilesystem/). However, you can get pretty far with a well-behaved way to call system commands:
 
     local status,output = winapi.execute('dir /B')
     local files = {}
@@ -226,7 +228,7 @@ Using a callback means that you can watch multiple directories and still respond
 
 ### Output and Timers
 
-GUI applications do not have a console so `print` does not work. `show_message` will put up a message box to bother users, and `output_debug_string` will write text quietly to the debug stream. A utility such as [DebugView]() can be used to view this output, which shows it with a timestamp.
+GUI applications do not have a console so `print` does not work. `show_message` will put up a message box to bother users, and `output_debug_string` will write text quietly to the debug stream. A utility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647) can be used to view this output, which shows it with a timestamp.
 
 It is straightforward to create a timer. You could of course use `sleep` but then your application will do nothing but sleep most of the time. This callback-driven timer can run in the background:
 
