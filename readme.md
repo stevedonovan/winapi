@@ -2,6 +2,10 @@
 
 This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`. The API reference is [here](http://stevedonovan.github.com/winapi/api.html).
 
+This library is under the same MIT license as as Lua.
+
+Copyright (c) Steve Donovan, 2011.
+
 ### Creating and working with Processes
 
 An  irritating fact is that Lua GUI applications (such as IUP or wxLua) cannot use `os.execute` without the infamous 'flashing black box' of console creation. And `io.popen` may in fact not work at all.
