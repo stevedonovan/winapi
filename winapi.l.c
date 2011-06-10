@@ -72,6 +72,11 @@ static int push_error(lua_State *L) {
   return 2;
 }
 
+static int push_ok(lua_State *L) {
+  lua_pushboolean(L,1);
+  return 1;
+}
+
 static void throw_error(lua_State *L, const char *msg) {
   OutputDebugString(last_error(0));
   OutputDebugString(msg);
@@ -553,8 +558,7 @@ def show_message(Str caption, Str msg) {
 // @function copy_file
 def copy_file(Str src, Str dest, Int fail_if_exists = 0) {
   if (CopyFile(src,dest,fail_if_exists)) {
-    lua_pushboolean(L,1);
-    return 1;
+    return push_ok(L);
   } else {
     return push_error(L);
   }
@@ -566,8 +570,7 @@ def copy_file(Str src, Str dest, Int fail_if_exists = 0) {
 // @function move_file
 def move_file(Str src, Str dest) {
   if (MoveFile(src,dest)) {
-    lua_pushboolean(L,1);
-    return 1;
+    return push_ok(L);
   } else {
     return push_error(L);
   }
@@ -583,8 +586,7 @@ def move_file(Str src, Str dest) {
 def shell_exec(StrNil verb, Str file, StrNil parms, StrNil dir, Int show=SW_SHOWNORMAL) {
   DWORD_PTR res = (DWORD_PTR)ShellExecute(NULL,verb,file,parms,dir,show);
   if (res > 32) {
-    lua_pushboolean(L,1);
-    return 1;
+    return push_ok(L);
   } else {
     return push_error(L);
   }
@@ -852,6 +854,529 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
   }
 }
 
+// These functions are all run in background threads, and a little bit of poor man's
+// OOP helps here. This is the base struct for describing threads with callbacks,
+// which may have an associated buffer and handle.
+
+#define callback_data_ \
+  lua_State *L; \
+  Ref callback; \
+  char *buf; \
+  int bufsz; \
+  HANDLE handle;
+
+
+typedef struct {
+  callback_data_
+} LuaCallback, *PLuaCallback;
+
+void lcb_callback(void *lcb, lua_State *L, int idx) {
+  LuaCallback *data = (LuaCallback*) lcb;
+  data->L = L;
+  data->callback = make_ref(L,idx);
+  data->buf = NULL;
+  data->handle = NULL;
+}
+
+BOOL lcb_call(void *data, int idx, Str text, int persist) {
+  LuaCallback *lcb = (LuaCallback*)data;
+  return call_lua(lcb->L,lcb->callback,idx,text,persist);
+}
+
+void lcb_allocate_buffer(void *data, int size) {
+  LuaCallback *lcb = (LuaCallback*)data;
+  lcb->buf = malloc(size);
+  lcb->bufsz = size;
+}
+
+void lcb_free(void *data) {
+  LuaCallback *lcb = (LuaCallback*)data;
+  if (! lcb) return;
+  if (lcb->buf) {
+    free(lcb->buf);
+    lcb->buf = NULL;
+  }
+  if (lcb->handle) {
+    CloseHandle(lcb->handle);
+    lcb->handle = NULL;
+  }
+  release_ref(lcb->L,lcb->callback);
+}
+
+class Thread {
+  LuaCallback *lcb;
+  HANDLE thread;
+
+  constructor (PLuaCallback lcb, HANDLE thread) {
+    this->lcb = lcb;
+    this->thread = thread;
+  }
+
+  def suspend() {
+    if (SuspendThread(this->thread) >= 0) {
+      return push_ok(L);
+    } else {
+      return push_error(L);
+    }
+  }
+
+  def resume() {
+    if (ResumeThread(this->thread) >= 0) {
+      return push_ok(L);
+    } else {
+      return push_error(L);
+    }
+  }
+
+  def kill() {
+    lcb_free(this->lcb);
+    if (TerminateThread(this->thread,1)) {
+      return push_ok(L);
+    } else {
+      return push_error(L);
+    }
+  }
+
+  def set_priority(Int p) {
+    if (SetThreadPriority(this->thread,p)) {
+      return push_ok(L);
+    } else {
+      return push_error(L);
+    }
+  }
+
+  def get_priority() {
+    int res = GetThreadPriority(this->thread);
+    if (res != THREAD_PRIORITY_ERROR_RETURN) {
+      lua_pushinteger(L,res);
+      return 1;
+    } else {
+      return push_error(L);
+    }
+  }
+
+  def __gc() {
+    // lcb_free(this->lcb); concerned that this cd kick in prematurely!
+    CloseHandle(this->thread);
+    return 0;
+  }
+
+}
+
+typedef void (*ThreadCallback)(void *);
+
+int lcb_new_thread(ThreadCallback fun, void *data) {
+  LuaCallback *lcb = (LuaCallback*)data;
+  HANDLE thread = (HANDLE)_beginthread(fun,THREAD_STACK_SIZE,data);
+  push_new_Thread(lcb->L,lcb,thread);
+  return 1;
+}
+
+#define lcb_buf(data) ((LuaCallback *)data)->buf
+#define lcb_bufsz(data) ((LuaCallback *)data)->bufsz
+#define lcb_handle(data) ((LuaCallback *)data)->handle
+
+/// this represents a raw Windows file handle.
+// The write handle may be distinct from the read handle.
+// @type File
+class File {
+  callback_data_
+  HANDLE hWrite;
+
+  constructor (HANDLE hread, HANDLE hwrite) {
+    lcb_handle(this) = hread;
+    this->hWrite = hwrite;
+    this->L = L;
+    lcb_allocate_buffer(this,FILE_BUFF_SIZE);
+  }
+
+  /// write to a file.
+  // @param s text
+  // @return number of bytes written.
+  // @function write
+  def write(Str s) {
+    DWORD bytesWrote;
+    WriteFile(this->hWrite, s, lua_objlen(L,2), &bytesWrote, NULL);
+    lua_pushinteger(L,bytesWrote);
+    return 1;
+  }
+
+  static BOOL raw_read (File *this) {
+    DWORD bytesRead = 0;
+    BOOL res = ReadFile(lcb_handle(this), lcb_buf(this), lcb_bufsz(this), &bytesRead, NULL);
+    lcb_buf(this)[bytesRead] = '\0';
+    return res && bytesRead;
+  }
+
+  /// read from a file.
+  // Please note that this is not buffered, and you will have to
+  // split into lines, etc yourself.
+  // @return text if successful, nil plus error otherwise.
+  // @function read
+  def read() {
+    if (raw_read(this)) {
+      lua_pushstring(L,lcb_buf(this));
+      return 1;
+    } else {
+      return push_error(L);
+    }
+  }
+
+  static void file_reader (File *this) { // background reader thread
+    int n;
+    do {
+      n = raw_read(this);
+      lcb_call (this,0,lcb_buf(this),! n);
+    } while (n);
+
+  }
+
+  /// asynchronous read.
+  // @param callback function that will receive each chunk of text
+  // as it comes in.
+  // @function read_async
+  def read_async (Value callback) {
+    this->callback = make_ref(L,callback);
+    return lcb_new_thread(&file_reader,this);
+  }
+
+  def close() {
+    if (this->hWrite != lcb_handle(this))
+      CloseHandle(this->hWrite);
+    lcb_free(this);
+    return 0;
+  }
+
+  def __gc () {
+    free(this->buf);
+    return 0;
+  }
+}
+
+/// Launching processes.
+// @section Launch
+
+/// Spawn a process.
+// @param program the command-line (program + parameters)
+// @return a process object
+// @return a File object
+// @see File, Process
+// @function spawn
+def spawn(Str program) {
+  SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, 0};
+  SECURITY_DESCRIPTOR sd;
+  STARTUPINFO si = {
+           sizeof(STARTUPINFO), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+       };
+  HANDLE hPipeRead,hWriteSubProcess;
+  HANDLE hRead2,hPipeWrite;
+  BOOL running;
+  PROCESS_INFORMATION pi;
+  HANDLE hProcess = GetCurrentProcess();
+  sa.bInheritHandle = TRUE;
+  sa.lpSecurityDescriptor = NULL;
+  InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION);
+  SetSecurityDescriptorDacl(&sd, TRUE, NULL, FALSE);
+  sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+  sa.lpSecurityDescriptor = &sd;
+
+  // Create pipe for output redirection
+  CreatePipe(&hPipeRead, &hPipeWrite, &sa, 0);
+
+  // Create pipe for input redirection. In this code, you do not
+  // redirect the output of the child process, but you need a handle
+  // to set the hStdInput field in the STARTUP_INFO struct. For safety,
+  // you should not set the handles to an invalid handle.
+
+  hRead2 = NULL;
+  CreatePipe(&hRead2, &hWriteSubProcess, &sa, 0);
+
+  SetHandleInformation(hPipeRead, HANDLE_FLAG_INHERIT, 0);
+  SetHandleInformation(hWriteSubProcess, HANDLE_FLAG_INHERIT, 0);
+
+  si.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
+  si.wShowWindow = SW_HIDE;
+  si.hStdInput = hRead2;
+  si.hStdOutput = hPipeWrite;
+  si.hStdError = hPipeWrite;
+
+  running = CreateProcess(
+        NULL,
+        (char*)program,
+        NULL, NULL,
+        TRUE, CREATE_NEW_PROCESS_GROUP,
+        NULL,
+        NULL,
+        &si, &pi);
+
+  if (running) {
+    CloseHandle(pi.hThread);
+    CloseHandle(hRead2);
+    CloseHandle(hPipeWrite);
+    push_new_Process(L,pi.dwProcessId,pi.hProcess);
+    push_new_File(L,hPipeRead,hWriteSubProcess);
+    return 2;
+  } else {
+    return push_error(L);
+  }
+}
+
+/// Execute a system command.
+// This is like os.execute(), except that it works without ugly
+// console flashing in Windows GUI applications. It additionally
+// returns all text read from stdout and stderr.
+// @param cmd a shell command (may include redirection, etc)
+// @return status code
+// @return program output
+// @function execute
+
+// Timer support //////////
+typedef struct {
+  callback_data_
+  int msec;
+} TimerData;
+
+static void timer_thread(TimerData *data) { // background timer thread
+  while (1) {
+    Sleep(data->msec);
+    if (lcb_call(data,0,0,0))
+      break;
+  }
+}
+
+/// Asynchronous Timers.
+// @section Timers
+
+/// Create an asynchronous timer.
+// The callback can return true if it wishes to cancel the timer.
+// @param msec interval in millisec
+// @param callback a function to be called at each interval.
+// @function timer
+def timer(Int msec, Value callback) {
+  TimerData *data = (TimerData *)malloc(sizeof(TimerData));
+  data->msec = msec;
+  lcb_callback(data,L,callback);
+  return lcb_new_thread(&timer_thread,data);
+}
+
+#define PSIZE 512
+
+typedef struct {
+  callback_data_
+  const char *pipename;
+} PipeServerParms;
+
+static void pipe_server_thread(PipeServerParms *parms) {
+  while (1) {
+    BOOL connected;
+    HANDLE hPipe = CreateNamedPipe(
+          parms->pipename,             // pipe named
+          PIPE_ACCESS_DUPLEX,       // read/write access
+          PIPE_WAIT,                // blocking mode
+          255,
+          PSIZE,                  // output buffer size
+          PSIZE,                  // input buffer size
+          0,                        // client time-out
+          NULL);                    // default security attribute
+
+    if (hPipe == INVALID_HANDLE_VALUE) {
+      push_error(parms->L); // how to signal main thread about this?
+    }
+    // Wait for the client to connect; if it succeeds,
+    // the function returns a nonzero value. If the function
+    // returns zero, GetLastError returns ERROR_PIPE_CONNECTED.
+
+    connected = ConnectNamedPipe(hPipe, NULL) ?
+         TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
+
+    if (connected) {
+      push_new_File(parms->L,hPipe,hPipe);
+      lcb_call(parms,-1,0,0);
+    } else {
+      CloseHandle(hPipe);
+    }
+  }
+}
+
+/// Dealing with named pipes.
+// @section Pipes
+
+/// Open a pipe for reading and writing.
+// @param pipename the pipename (default is "\\\\.\\pipe\\luawinapi")
+// @function open_pipe
+def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
+  HANDLE hPipe = CreateFile(
+      pipename,
+      GENERIC_READ |  // read and write access
+      GENERIC_WRITE,
+      0,              // no sharing
+      NULL,           // default security attributes
+      OPEN_EXISTING,  // opens existing pipe
+      0,              // default attributes
+      NULL);          // no template file
+  if (hPipe == INVALID_HANDLE_VALUE) {
+    return push_error(L);
+  } else {
+    push_new_File(L,hPipe,hPipe);
+    return 1;
+  }
+}
+
+/// Create a named pipe server.
+// This goes into a background loop, and accepts client connections.
+// For each new connection, the callback will be called with a File
+// object for reading and writing to the client.
+// @param callback a function that will be passed a File object
+// @param pipename Must be of the form \\.\pipe\name, defaults to
+// \\.\pipe\luawinapi.
+// @function server
+def server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
+  PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
+  lcb_callback(psp,L,callback);
+  psp->pipename = pipename;
+  return lcb_new_thread(&pipe_server_thread,psp);
+}
+
+// Directory change notification ///////
+
+typedef struct {
+  callback_data_
+  const char *dir;
+  DWORD how;
+  DWORD subdirs;
+} FileChangeParms;
+
+static void file_change_thread(FileChangeParms *fc) { // background file monitor thread
+  while (1) {
+    int next;
+    DWORD bytes;
+    // This fills in some gaps:
+    // http://qualapps.blogspot.com/2010/05/understanding-readdirectorychangesw_19.html
+    if (! ReadDirectoryChangesW(lcb_handle(fc),lcb_buf(fc),lcb_bufsz(fc),
+        fc->subdirs, fc->how, &bytes,NULL,NULL))
+    {
+      throw_error(fc->L,"read dir changes failed");
+    }
+    next = 0;
+    do {
+      int i,sz, outchars;
+      short *pfile;
+      char outbuff[MAX_PATH];
+      PFILE_NOTIFY_INFORMATION pni = (PFILE_NOTIFY_INFORMATION)(lcb_buf(fc)+next);
+      outchars = WideCharToMultiByte(
+        CP_UTF8, 0,
+        pni->FileName,
+        pni->FileNameLength/2, // it's bytes, not number of characters!
+        outbuff,sizeof(outbuff),
+        NULL,NULL);
+      if (outchars == 0) {
+        throw_error(fc->L,"wide char conversion borked");
+      }
+      outbuff[outchars] = '\0';  // not null-terminated!
+      lcb_call(fc,pni->Action,outbuff,0);
+      next = pni->NextEntryOffset;
+    } while (next != 0);
+  }
+}
+
+/// Drive information and watching directories.
+// @section Directories
+
+/// get all the drives on this computer.
+// @return a table of drive names
+// @function get_logical_drives
+def get_logical_drives() {
+  int i, lasti = 0, k = 1;
+  const char *p = buff;
+  DWORD size = GetLogicalDriveStrings(sizeof(buff),buff);
+  lua_newtable(L);
+  for (i = 0; i < size; i++) {
+    if (buff[i] == '\0') {
+      lua_pushlstring(L,p, i - lasti);
+      lua_rawseti(L,-2,k++);
+      p = buff + i+1;
+      lasti = i+1;
+    }
+  }
+  return 1;
+}
+
+/// get the type of the given drive.
+// @param root root of drive (e.g. 'c:\\')
+// @return one of the following: unknown, none, removable, fixed, remote,
+// cdrom, ramdisk.
+// @function get_drive_type
+def get_drive_type(Str root) {
+  UINT res = GetDriveType(root);
+  const char *type;
+  switch(res) {
+    case DRIVE_UNKNOWN: type = "unknown"; break;
+    case DRIVE_NO_ROOT_DIR: type = "none"; break;
+    case DRIVE_REMOVABLE: type = "removable"; break;
+    case DRIVE_FIXED: type = "fixed"; break;
+    case DRIVE_REMOTE: type = "remote"; break;
+    case DRIVE_CDROM: type = "cdrom"; break;
+    case DRIVE_RAMDISK: type = "ramdisk"; break;
+  }
+  lua_pushstring(L,type);
+  return 1;
+}
+
+/// get the free disk space.
+// @param root the root of the drive (e.g. 'd:\\')
+// @return free space in kB
+// @return total space in kB
+// @function get_disk_free_space
+def get_disk_free_space(Str root) {
+  ULARGE_INTEGER freebytes, totalbytes;
+  if (! GetDiskFreeSpaceEx(root,&freebytes,&totalbytes,NULL)) {
+    return push_error(L);
+  }
+  lua_pushnumber(L,freebytes.QuadPart/1024);
+  lua_pushnumber(L,totalbytes.QuadPart/1024);
+  return 2;
+}
+
+//// start watching a directory.
+// @param dir the directory
+// @param how what events to monitor. Can be a sum of these flags:
+//
+//  * FILE_NOTIFY_CHANGE_FILE_NAME
+//  * FILE_NOTIFY_CHANGE_DIR_NAME
+//  * FILE_NOTIFY_CHANGE_LAST_WRITE
+//
+// @param subdirs whether subdirectories should be monitored
+// @param callback a function which will receive the kind of change
+// plus the filename that changed. The change will be one of these:
+//
+// * FILE_ACTION_ADDED
+// * FILE_ACTION_REMOVED
+// * FILE_ACTION_MODIFIED
+// * FILE_ACTION_RENAMED_OLD_NAME
+// * FILE_ACTION_RENAMED_NEW_NAME
+//
+// @function watch_for_file_changes
+def watch_for_file_changes (Str dir, Int how, Boolean subdirs, Value callback) {
+  FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
+  lcb_callback(fc,L,callback);
+  fc->dir = dir;
+  fc->how = how;
+  fc->subdirs = subdirs;
+  lcb_handle(fc) = CreateFile(dir,
+    FILE_LIST_DIRECTORY,
+    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+    NULL,
+    OPEN_ALWAYS,
+    FILE_FLAG_BACKUP_SEMANTICS,
+    NULL
+    );
+  if (lcb_handle(fc) == INVALID_HANDLE_VALUE) {
+    return push_error(L);
+  }
+  lcb_allocate_buffer(fc,2048);
+  return lcb_new_thread(&file_change_thread,fc);
+}
+
 /// Class representing Windows registry keys.
 // @type regkey
 class regkey {
@@ -869,8 +1394,7 @@ class regkey {
     if (RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) != ERROR_SUCCESS) {
       return push_error(L);
     } else {
-      lua_pushboolean(L,1);
-      return 1;
+      return push_ok(L);
     }
   }
 
@@ -1000,447 +1524,6 @@ def create_key (Str path) {
   } else {
     return push_error(L);
   }
-}
-
-// These functions are all run in background threads, and a little bit of poor man's
-// OOP helps here.
-
-typedef struct {
-  lua_State *L;
-  Ref callback;
-} LuaCallback;
-
-void set_callback(void *lcb, lua_State *L, int idx) {
-  LuaCallback *data = (LuaCallback*) lcb;
-  data->L = L;
-  data->callback = make_ref(L,idx);
-}
-
-BOOL call_lua_callback(void *data, int idx, Str text, int persist) {
-  LuaCallback *lcb = (LuaCallback*)data;
-  return call_lua(lcb->L,lcb->callback,idx,text,persist);
-}
-
-/// this represents a raw Windows file handle.
-// @type File
-class File {
-  lua_State *L;
-  Ref callback;
-  HANDLE hRead;
-  HANDLE hWrite;
-  char *buf;
-  int bufsz;
-
-  constructor (HANDLE hread, HANDLE hwrite) {
-    this->hRead = hread;
-    this->hWrite = hwrite;
-    this->L = L;
-    this->bufsz = FILE_BUFF_SIZE;
-    this->buf = malloc(this->bufsz);
-  }
-
-  /// write to a file.
-  // @param s text
-  // @return number of bytes written.
-  // @function write
-  def write(Str s) {
-    DWORD bytesWrote;
-    WriteFile(this->hWrite, s, lua_objlen(L,2), &bytesWrote, NULL);
-    lua_pushinteger(L,bytesWrote);
-    return 1;
-  }
-
-  static BOOL raw_read (File *this) {
-    DWORD bytesRead = 0;
-    BOOL res = ReadFile(this->hRead, this->buf, this->bufsz, &bytesRead, NULL);
-    this->buf[bytesRead] = '\0';
-    return res && bytesRead;
-  }
-
-  /// read from a file.
-  // Please note that this is not buffered, and you will have to
-  // split into lines, etc yourself.
-  // @return text if successful, nil plus error otherwise.
-  // @function read
-  def read() {
-    if (raw_read(this)) {
-      lua_pushstring(L,this->buf);
-      return 1;
-    } else {
-      return push_error(L);
-    }
-  }
-
-  static void file_reader (File *this) { // background reader thread
-    int n;
-    do {
-      n = raw_read(this);
-      call_lua_callback (this,0,this->buf,! n);
-    } while (n);
-
-  }
-
-  /// asynchronous read.
-  // @param callback function that will receive each chunk of text
-  // as it comes in.
-  // @function read_async
-  def read_async (Value callback) {
-    this->callback = make_ref(L,callback);
-    _beginthread(&file_reader, THREAD_STACK_SIZE,this);
-    return 0;
-  }
-
-  def close() {
-    CloseHandle(this->hRead);
-    if (this->hWrite != this->hRead)
-      CloseHandle(this->hWrite);
-    free(this->buf);
-    return 0;
-  }
-
-  def __gc () {
-    free(this->buf);
-    return 0;
-  }
-}
-
-/// Launching processes.
-// @section Launch
-
-/// Spawn a process.
-// @param program the command-line (program + parameters)
-// @return a process object
-// @return a File object
-// @see File, Process
-// @function spawn
-def spawn(Str program) {
-  SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, 0};
-  SECURITY_DESCRIPTOR sd;
-  STARTUPINFO si = {
-           sizeof(STARTUPINFO), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-       };
-  HANDLE hPipeRead,hWriteSubProcess;
-  HANDLE hRead2,hPipeWrite;
-  BOOL running;
-  PROCESS_INFORMATION pi;
-  HANDLE hProcess = GetCurrentProcess();
-  sa.bInheritHandle = TRUE;
-  sa.lpSecurityDescriptor = NULL;
-  InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION);
-  SetSecurityDescriptorDacl(&sd, TRUE, NULL, FALSE);
-  sa.nLength = sizeof(SECURITY_ATTRIBUTES);
-  sa.lpSecurityDescriptor = &sd;
-
-  // Create pipe for output redirection
-  CreatePipe(&hPipeRead, &hPipeWrite, &sa, 0);
-
-  // Create pipe for input redirection. In this code, you do not
-  // redirect the output of the child process, but you need a handle
-  // to set the hStdInput field in the STARTUP_INFO struct. For safety,
-  // you should not set the handles to an invalid handle.
-
-  hRead2 = NULL;
-  CreatePipe(&hRead2, &hWriteSubProcess, &sa, 0);
-
-  SetHandleInformation(hPipeRead, HANDLE_FLAG_INHERIT, 0);
-  SetHandleInformation(hWriteSubProcess, HANDLE_FLAG_INHERIT, 0);
-
-  si.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
-  si.wShowWindow = SW_HIDE;
-  si.hStdInput = hRead2;
-  si.hStdOutput = hPipeWrite;
-  si.hStdError = hPipeWrite;
-
-  running = CreateProcess(
-        NULL,
-        (char*)program,
-        NULL, NULL,
-        TRUE, CREATE_NEW_PROCESS_GROUP,
-        NULL,
-        NULL,
-        &si, &pi);
-
-  if (running) {
-    CloseHandle(pi.hThread);
-    CloseHandle(hRead2);
-    CloseHandle(hPipeWrite);
-    push_new_Process(L,pi.dwProcessId,pi.hProcess);
-    push_new_File(L,hPipeRead,hWriteSubProcess);
-    return 2;
-  } else {
-    return push_error(L);
-  }
-}
-
-/// Execute a system command.
-// This is like os.execute(), except that it works without ugly
-// console flashing in Windows GUI applications. It additionally
-// returns all text read from stdout and stderr.
-// @param cmd a shell command (may include redirection, etc)
-// @return status code
-// @return program output
-// @function execute
-
-// Timer support //////////
-typedef struct {
-  lua_State *L;
-  Ref callback;
-  int msec;
-} TimerData;
-
-static void timer_thread(TimerData *data) { // background timer thread
-  while (1) {
-    Sleep(data->msec);
-    if (call_lua_callback(data,0,0,0))
-      break;
-  }
-}
-
-/// Asynchronous Timers.
-// @section Timers
-
-/// Create an asynchronous timer.
-// The callback can return true if it wishes to cancel the timer.
-// @param msec interval in millisec
-// @param callback a function to be called at each interval.
-// @function timer
-def timer(Int msec, Value callback) {
-  TimerData *data = (TimerData *)malloc(sizeof(TimerData));
-  data->msec = msec;
-  set_callback(data,L,callback);
-  _beginthread(&timer_thread,THREAD_STACK_SIZE,data);
-  return 0;
-}
-
-#define PSIZE 512
-
-typedef struct {
-  lua_State *L;
-  Ref callback;
-  const char *pipename;
-} PipeServerParms;
-
-static void pipe_server_thread(PipeServerParms *parms) {
-  while (1) {
-    BOOL connected;
-    HANDLE hPipe = CreateNamedPipe(
-          parms->pipename,             // pipe named
-          PIPE_ACCESS_DUPLEX,       // read/write access
-          PIPE_WAIT,                // blocking mode
-          255,
-          PSIZE,                  // output buffer size
-          PSIZE,                  // input buffer size
-          0,                        // client time-out
-          NULL);                    // default security attribute
-
-    if (hPipe == INVALID_HANDLE_VALUE) {
-      push_error(parms->L); // how to signal main thread about this?
-    }
-    // Wait for the client to connect; if it succeeds,
-    // the function returns a nonzero value. If the function
-    // returns zero, GetLastError returns ERROR_PIPE_CONNECTED.
-
-    connected = ConnectNamedPipe(hPipe, NULL) ?
-         TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
-
-    if (connected) {
-      push_new_File(parms->L,hPipe,hPipe);
-      call_lua_callback(parms,-1,0,0);
-    } else {
-      CloseHandle(hPipe);
-    }
-  }
-}
-
-/// Dealing with named pipes.
-// @section Pipes
-
-/// Open a pipe for reading and writing.
-// @param pipename the pipename (default is "\\\\.\\pipe\\luawinapi")
-// @function open_pipe
-def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
-  HANDLE hPipe = CreateFile(
-      pipename,
-      GENERIC_READ |  // read and write access
-      GENERIC_WRITE,
-      0,              // no sharing
-      NULL,           // default security attributes
-      OPEN_EXISTING,  // opens existing pipe
-      0,              // default attributes
-      NULL);          // no template file
-  if (hPipe == INVALID_HANDLE_VALUE) {
-    return push_error(L);
-  } else {
-    push_new_File(L,hPipe,hPipe);
-    return 1;
-  }
-}
-
-/// Create a named pipe server.
-// This goes into a background loop, and accepts client connections.
-// For each new connection, the callback will be called with a File
-// object for reading and writing to the client.
-// @param callback a function that will be passed a File object
-// @param pipename Must be of the form \\.\pipe\name, defaults to
-// \\.\pipe\luawinapi.
-// @function server
-def server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
-  PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
-  set_callback(psp,L,callback);
-  psp->pipename = pipename;
-  _beginthread(&pipe_server_thread,THREAD_STACK_SIZE,psp);
-  return 0;
-}
-
-// Directory change notification ///////
-
-typedef struct {
-  lua_State *L;
-  Ref callback;
-  const char *dir;
-  DWORD how;
-  DWORD subdirs;
-  HANDLE hDir;
-  char *buff;
-  int buffsize;
-} FileChangeParms;
-
-static void file_change_thread(FileChangeParms *fc) { // background file monitor thread
-  while (1) {
-    int next;
-    DWORD bytes;
-    // This fills in some gaps:
-    // http://qualapps.blogspot.com/2010/05/understanding-readdirectorychangesw_19.html
-    if (! ReadDirectoryChangesW(fc->hDir,fc->buff,fc->buffsize,
-        fc->subdirs, fc->how, &bytes,NULL,NULL))
-    {
-      throw_error(fc->L,"read dir changes failed");
-    }
-    next = 0;
-    do {
-      int i,sz, outchars;
-      short *pfile;
-      char outbuff[MAX_PATH];
-      PFILE_NOTIFY_INFORMATION pni = (PFILE_NOTIFY_INFORMATION)(fc->buff+next);
-      outchars = WideCharToMultiByte(
-        CP_UTF8, 0,
-        pni->FileName,
-        pni->FileNameLength/2, // it's bytes, not number of characters!
-        outbuff,sizeof(outbuff),
-        NULL,NULL);
-      if (outchars == 0) {
-        throw_error(fc->L,"wide char conversion borked");
-      }
-      outbuff[outchars] = '\0';  // not null-terminated!
-      call_lua_callback(fc,pni->Action,outbuff,0);
-      next = pni->NextEntryOffset;
-    } while (next != 0);
-  }
-}
-
-/// Drive information and watching directories.
-// @section Directories
-
-
-/// get all the drives on this computer.
-// @return a table of drive names
-// @function get_logical_drives
-def get_logical_drives() {
-  int i, lasti = 0, k = 1;
-  const char *p = buff;
-  DWORD size = GetLogicalDriveStrings(sizeof(buff),buff);
-  lua_newtable(L);
-  for (i = 0; i < size; i++) {
-    if (buff[i] == '\0') {
-      lua_pushlstring(L,p, i - lasti);
-      lua_rawseti(L,-2,k++);
-      p = buff + i+1;
-      lasti = i+1;
-    }
-  }
-  return 1;
-}
-
-/// get the type of the given drive.
-// @param root root of drive (e.g. 'c:\\')
-// @return one of the following: unknown, none, removable, fixed, remote,
-// cdrom, ramdisk.
-// @function get_drive_type
-def get_drive_type(Str root) {
-  UINT res = GetDriveType(root);
-  const char *type;
-  switch(res) {
-    case DRIVE_UNKNOWN: type = "unknown"; break;
-    case DRIVE_NO_ROOT_DIR: type = "none"; break;
-    case DRIVE_REMOVABLE: type = "removable"; break;
-    case DRIVE_FIXED: type = "fixed"; break;
-    case DRIVE_REMOTE: type = "remote"; break;
-    case DRIVE_CDROM: type = "cdrom"; break;
-    case DRIVE_RAMDISK: type = "ramdisk"; break;
-  }
-  lua_pushstring(L,type);
-  return 1;
-}
-
-/// get the free disk space.
-// @param root the root of the drive (e.g. 'd:\\')
-// @return free space in kB
-// @return total space in kB
-// @function get_disk_free_space
-def get_disk_free_space(Str root) {
-  ULARGE_INTEGER freebytes, totalbytes;
-  if (! GetDiskFreeSpaceEx(root,&freebytes,&totalbytes,NULL)) {
-    return push_error(L);
-  }
-  lua_pushnumber(L,freebytes.QuadPart/1024);
-  lua_pushnumber(L,totalbytes.QuadPart/1024);
-  return 2;
-}
-
-
-
-
-//// start watching a directory.
-// @param dir the directory
-// @param how what events to monitor. Can be a sum of these flags:
-//
-//  * FILE_NOTIFY_CHANGE_FILE_NAME
-//  * FILE_NOTIFY_CHANGE_DIR_NAME
-//  * FILE_NOTIFY_CHANGE_LAST_WRITE
-//
-// @param subdirs whether subdirectories should be monitored
-// @param callback a function which will receive the kind of change
-// plus the filename that changed. The change will be one of these:
-//
-// * FILE_ACTION_ADDED
-// * FILE_ACTION_REMOVED
-// * FILE_ACTION_MODIFIED
-// * FILE_ACTION_RENAMED_OLD_NAME
-// * FILE_ACTION_RENAMED_NEW_NAME
-//
-// @function watch_for_file_changes
-def watch_for_file_changes (Str dir, Int how, Boolean subdirs, Value callback) {
-  FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
-  set_callback(fc,L,callback);
-  fc->dir = dir;
-  fc->how = how;
-  fc->subdirs = subdirs;
-  fc->hDir = CreateFile(dir,
-    FILE_LIST_DIRECTORY,
-    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-    NULL,
-    OPEN_ALWAYS,
-    FILE_FLAG_BACKUP_SEMANTICS,
-    NULL
-    );
-  if (fc->hDir == INVALID_HANDLE_VALUE) {
-    return push_error(L);
-  }
-  fc->buffsize = 2048;
-  fc->buff = (char*)malloc(fc->buffsize);
-  _beginthread(&file_change_thread,THREAD_STACK_SIZE,fc);
-  lua_pushboolean(L,1);
-  return 1;
 }
 
 lua {

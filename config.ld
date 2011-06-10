@@ -1,4 +1,6 @@
 -- ldoc configuration file
+file = "winapi.l.c"
+output = "api"
 title = "Winapi documentation"
 project = "winapi"
 
