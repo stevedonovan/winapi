@@ -1,3 +1,4 @@
 for i = 1,1e8 do end
-os.execute 'echo slow > slow.out'
+print(arg[1])
+
 

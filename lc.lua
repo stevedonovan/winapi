@@ -146,6 +146,7 @@ M.define('constants',function(get,put)
     -- os.exit()
     local fname = 'set_'..btop.cname..'_constants'
     local out = { 'static void '..fname..'(lua_State *L) {'}
+    if not btop.finalizers then M.error("not inside a module") end
     append(btop.finalizers,fname)
     for _,c in ipairs(consts) do
         local type,value,name
@@ -266,11 +267,12 @@ $(klass) * $(klass)_arg(lua_State *L,int idx) {
 
 $(ctor);
 
-static void push_new_$(klass)(lua_State *L,$(fargs)) {
+static int push_new_$(klass)(lua_State *L,$(fargs)) {
   $(klass) *this = ($(klass) *)lua_newuserdata(L,sizeof($(klass)));
   luaL_getmetatable(L,$(klass)_MT);
   lua_setmetatable(L,-2);
   $(klass)_ctor(L,this,$(aargs));
+  return 1;
 }
 
 ]]

@@ -21,168 +21,44 @@ A useful set of Windows API functions.
 #endif
 #include <psapi.h>
 
-#define eq(s1,s2) (strcmp(s1,s2)==0)
 
 #define WBUFF 2048
 #define MAX_SHOW 100
-#define MAX_KEY MAX_PATH
 #define THREAD_STACK_SIZE (1024 * 1024)
 #define MAX_PROCESSES 1024
 #define MAX_KEYS 512
 #define FILE_BUFF_SIZE 2048
 #define MAX_WATCH 20
 
-static char buff[WBUFF];
+static wchar_t wbuff[WBUFF];
+
+typedef LPCWSTR WStr;
 
 module "winapi" {
 
-typedef int Ref;
+#include "wutils.h"
 
-static Ref make_ref(lua_State *L, int idx) {
-  lua_pushvalue(L,idx);
-  return luaL_ref(L,LUA_REGISTRYINDEX);
+static WStr wstring(Str text) {
+  return wstring_buff(text,wbuff,sizeof(wbuff));
 }
 
-static void release_ref(lua_State *L, Ref ref) {
-  luaL_unref(L,LUA_REGISTRYINDEX,ref);
+/// Text encoding.
+// @section encoding
+
+/// set the current text encoding.
+// @param e one of CP_ACP (Windows code page; default) and CP_UTF8
+// @function set_encoding
+def set_encoding (Int e) {
+  set_encoding(e);
+  return 0;
 }
 
-static int push_ref(lua_State *L, Ref ref) {
-  lua_rawgeti(L,LUA_REGISTRYINDEX,ref);
+/// get the current text encoding.
+// @return either CP_ACP or CP_UTF8
+// @function get_encoding
+def get_encoding () {
+  lua_pushinteger(L, get_encoding());
   return 1;
-}
-
-static const char *last_error(int err) {
-  static char buff[256];
-  int sz;
-  if (err == 0)
-    err = GetLastError();
-  sz = FormatMessage(
-    FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-    NULL,err,
-    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-    buff, 256, NULL );
-  buff[sz-2] = '\0'; // strip the \r\n
-  return buff;
-}
-
-static int push_error(lua_State *L) {
-  lua_pushnil(L);
-  lua_pushstring(L,last_error(0));
-  return 2;
-}
-
-static int push_ok(lua_State *L) {
-  lua_pushboolean(L,1);
-  return 1;
-}
-
-static void throw_error(lua_State *L, const char *msg) {
-  OutputDebugString(last_error(0));
-  OutputDebugString(msg);
-  lua_pushstring(L,msg);
-  lua_error(L);
-}
-
-static BOOL call_lua_direct(lua_State *L, Ref ref, int idx, const char *text, int discard) {
-  BOOL res,ipush = 1;
-  if (idx < 0)
-    lua_pushvalue(L,idx);
-  else if (idx > 0)
-    lua_pushinteger(L,idx);
-  else
-    ipush = 0;
-  push_ref(L,ref);
-  if (idx != 0)
-    lua_pushvalue(L,-2);
-  if (text != NULL) {
-    lua_pushstring(L,text);
-    ++ipush;
-  }
-  lua_call(L, ipush, 1);
-  res = lua_toboolean(L,-1);
-  if (discard) {
-    release_ref(L,ref);
-  }
-  return res;
-}
-
-// Calling back to Lua /////
-// For console applications, we just use a mutex to ensure that Lua will not
-// be re-entered, but if use_gui() is called, we use a message window to
-// make sure that the callback happens on the main GUI thread.
-
-typedef struct {
-  lua_State *L;
-  Ref ref;
-  int idx;
-  const char *text;
-  int discard;
-} LuaCallParms;
-
-#define MY_INTERNAL_LUA_MESSAGE WM_USER+42
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-  WNDPROC lpPrevWndProc;
-  if (uMsg == MY_INTERNAL_LUA_MESSAGE) {
-    BOOL res;
-    LuaCallParms *P  = (LuaCallParms*)lParam;
-    res = call_lua_direct(P->L,P->ref,P->idx,P->text,P->discard);
-    free(P);
-    return res;
-  }
-
-  lpPrevWndProc = (WNDPROC)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-  if (lpPrevWndProc)
-    return CallWindowProc(lpPrevWndProc, hwnd, uMsg, wParam, lParam);
-
-  return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
-
-HWND make_message_window() {
-  LONG_PTR subclassedProc;
-  HWND hwndDispatcher = CreateWindow(
-    "STATIC", "winapi_Spawner_Dispatcher",
-    0, 0, 0, 0, 0, 0, 0, GetModuleHandle(NULL), 0
-  );
-  subclassedProc = SetWindowLongPtr(hwndDispatcher, GWLP_WNDPROC, (LONG_PTR)WndProc);
-  SetWindowLongPtr(hwndDispatcher, GWLP_USERDATA, subclassedProc);
-  return hwndDispatcher;
-}
-
-static BOOL s_use_mutex = TRUE;
-static HWND hMessageWin = NULL;
-
-// this is a useful function to call a Lua function within an exclusive
-// mutex lock. There are two parameters:
-//
-// - the first can be zero, negative or postive. If zero, nothing happens. If
-// negative, it's assumed to be an index to a value on the stack; if positive,
-// assumed to be an integer value.
-// - the second can be NULL or some text. If NULL, nothing is pushed.
-//
-static BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
-  static HANDLE hLuaMutex = NULL;
-  BOOL res;
-  if (hLuaMutex == NULL) {
-    hLuaMutex = CreateMutex(NULL,FALSE,NULL);
-  }
-  WaitForSingleObject(hLuaMutex,INFINITE);
-  if (s_use_mutex) {
-    res = call_lua_direct(L,ref,idx,text,discard);
-  } else {
-    LuaCallParms *parms = (LuaCallParms*)malloc(sizeof(LuaCallParms));
-    parms->L = L;
-    parms->ref = ref;
-    parms->idx = idx;
-    parms->text = text;
-    parms->discard = discard;
-    PostMessage(hMessageWin,MY_INTERNAL_LUA_MESSAGE,0,(LPARAM)parms);
-    res = FALSE; // for now
-  }
-  ReleaseMutex(hLuaMutex);
-  return res;
 }
 
 /// a class representing a Window.
@@ -206,22 +82,21 @@ class Window {
   /// the handle of this window.
   // @function handle
   def handle() {
-    lua_pushinteger(L,(DWORD_PTR)this->hwnd);
+    lua_pushnumber(L,(DWORD_PTR)this->hwnd);
     return 1;
   }
 
   /// get the window text.
   // @function get_text
   def get_text() {
-    GetWindowText(this->hwnd,buff,sizeof(buff));
-    lua_pushstring(L,buff);
-    return 1;
+    GetWindowTextW(this->hwnd,wbuff,sizeof(wbuff));
+    return push_wstring(L,wbuff);
   }
 
   /// set the window text.
   // @function set_text
   def set_text(Str text) {
-    SetWindowText(this->hwnd,text);
+    SetWindowTextW(this->hwnd,wstring(text));
     return 0;
   }
 
@@ -288,8 +163,8 @@ class Window {
   // @param lparam
   // @return the result
   // @function send_message
-  def send_message(Int msg, Int wparam, Int lparam) {
-    lua_pushinteger(L,SendMessage(this->hwnd,msg,wparam,lparam));
+  def send_message(Int msg, Number wparam, Number lparam) {
+    lua_pushinteger(L,SendMessage(this->hwnd,msg,(WPARAM)wparam,(LPARAM)lparam));
     return 1;
   }
 
@@ -308,17 +183,15 @@ class Window {
   /// get the parent window.
   // @function get_parent
   def get_parent() {
-    push_new_Window(L,GetParent(this->hwnd));
-    return 1;
+    return push_new_Window(L,GetParent(this->hwnd));
   }
 
   /// get the name of the program owning this window.
   // @function get_module_filename
   def get_module_filename() {
-    int sz = GetWindowModuleFileName(this->hwnd,buff,sizeof(buff));
-    buff[sz] = '\0';
-    lua_pushstring(L,buff);
-    return 1;
+    int sz = GetWindowModuleFileNameW(this->hwnd,wbuff,sizeof(wbuff));
+    wbuff[sz] = 0;
+    return push_wstring(L,wbuff);
   }
 
   /// get the window class name.
@@ -326,9 +199,8 @@ class Window {
   // know the class of the top level window.
   // @function get_class_name
   def get_class_name() {
-    GetClassName(this->hwnd,buff,sizeof(buff));
-    lua_pushstring(L,buff);
-    return 1;
+    GetClassNameW(this->hwnd,wbuff,sizeof(wbuff));
+    return push_wstring(L,wbuff);
   }
 
   /// bring this window to the foreground.
@@ -338,16 +210,14 @@ class Window {
     return 1;
   }
 
-
   /// this window as string (up to 100 chars).
   // @function __tostring
   def __tostring() {
-    GetWindowText(this->hwnd,buff,sizeof(buff));
-    if (strlen(buff) > MAX_SHOW) {
-      strcpy(buff+MAX_SHOW,"...");
+    int sz = GetWindowTextW(this->hwnd,wbuff,sizeof(wbuff));
+    if (sz > MAX_SHOW) {
+      wbuff[MAX_SHOW] = '\0';
     }
-    lua_pushstring(L,buff);
-    return 1;
+    return push_wstring(L,wbuff);
   }
 
   def __eq(Window other) {
@@ -368,8 +238,7 @@ class Window {
 def find_window(StrNil cname, StrNil wname) {
   HWND hwnd;
   hwnd = FindWindow(cname,wname);
-  push_new_Window(L,hwnd);
-  return 1;
+  return push_new_Window(L,hwnd);
 }
 
 /// makes a function that matches against window text
@@ -399,8 +268,7 @@ def find_window(StrNil cname, StrNil wname) {
 // @return a window object
 // @function foreground_window
 def foreground_window() {
-  push_new_Window(L, GetForegroundWindow());
-  return 1;
+  return push_new_Window(L, GetForegroundWindow());
 }
 
 /// the desktop window.
@@ -408,8 +276,7 @@ def foreground_window() {
 // @usage winapi.desktop_window():get_bounds()
 // @function desktop_window
 def desktop_window() {
-  push_new_Window(L, GetDesktopWindow());
-  return 1;
+  return push_new_Window(L, GetDesktopWindow());
 }
 
 /// enumerate over all top-level windows.
@@ -427,10 +294,7 @@ def enum_windows(Value callback) {
 /// route callback dispatch through a message window.
 // @function use_gui
 def use_gui() {
-  s_use_mutex = FALSE;
-  if (hMessageWin == NULL) { // important to be created in the main thread
-    hMessageWin = make_message_window();
-  }
+  make_message_window();
   return 0;
 }
 
@@ -469,9 +333,7 @@ def send_input () {
   } else {
     text = lua_tostring(L,1);
     if (text == NULL) {
-      lua_pushnil(L);
-      lua_pushliteral(L,"not a string or number");
-      return 2;
+      return push_error_msg(L,"not a string or number");
     }
   }
   input = (INPUT *)malloc(sizeof(INPUT)*len);
@@ -542,13 +404,24 @@ def sleep(Int millisec) {
   return 0;
 }
 
+#define MSG_DEFAULT MB_OK | MB_ICONINFORMATION
+#define BEEP_DEFAULT -1
+
 /// show a message box.
 // @param caption for dialog
 // @param msg the message
+// @param type dialog type (default MB_OK + MB_ICONINFORMATION)
 // @function show_message
-def show_message(Str caption, Str msg) {
-  MessageBox( NULL, msg, caption, MB_OK | MB_ICONINFORMATION );
-  return 0;
+def show_message(Str caption, Str msg, Int type = MSG_DEFAULT) {
+  lua_pushinteger(L, MessageBox( NULL, msg, caption, type));
+  return 1;
+}
+
+/// make a beep sound.
+// @type default is -1; can use MB_ICONINFORMATION, MB_ICONQUESTION, MB_ICONERROR, MB_OK
+// @function beep
+def beep (Int type = BEEP_DEFAULT) {
+  return push_bool(L, MessageBeep(type));
 }
 
 /// copy a file.
@@ -557,11 +430,7 @@ def show_message(Str caption, Str msg) {
 // @param fail_if_exists if true, then cannot copy onto existing file
 // @function copy_file
 def copy_file(Str src, Str dest, Int fail_if_exists = 0) {
-  if (CopyFile(src,dest,fail_if_exists)) {
-    return push_ok(L);
-  } else {
-    return push_error(L);
-  }
+  return push_bool(L, CopyFile(src,dest,fail_if_exists));
 }
 
 /// move a file.
@@ -569,11 +438,7 @@ def copy_file(Str src, Str dest, Int fail_if_exists = 0) {
 // @param dest destination file
 // @function move_file
 def move_file(Str src, Str dest) {
-  if (MoveFile(src,dest)) {
-    return push_ok(L);
-  } else {
-    return push_error(L);
-  }
+  return push_bool(L, MoveFile(src,dest));
 }
 
 /// execute a shell command.
@@ -584,29 +449,25 @@ def move_file(Str src, Str dest) {
 // @param show the window show flags (default is SW_SHOWNORMAL)
 // @function shell_exec
 def shell_exec(StrNil verb, Str file, StrNil parms, StrNil dir, Int show=SW_SHOWNORMAL) {
-  DWORD_PTR res = (DWORD_PTR)ShellExecute(NULL,verb,file,parms,dir,show);
-  if (res > 32) {
-    return push_ok(L);
-  } else {
-    return push_error(L);
-  }
+  push_bool(L, (DWORD_PTR)ShellExecute(NULL,verb,file,parms,dir,show) > 32);
 }
 
 /// Copy text onto the clipboard.
 // @param text the text
-// @function put_clipboard_text
-def put_clipboard_text(Str text) {
+// @function set_clipboard
+def set_clipboard(Str text) {
   HGLOBAL glob;
-  char *p;
+  LPWSTR p;
+  int bufsize = 3*strlen(text);
   if (! OpenClipboard(NULL)) {
     return push_error(L);
   }
-  EmptyClipboard(); // hhmmmm
-  glob = GlobalAlloc(GMEM_MOVEABLE, lua_objlen(L,1)+1);
-  p = GlobalLock(glob);
-  strcpy(p, text);
+  EmptyClipboard();
+  glob = GlobalAlloc(GMEM_MOVEABLE, bufsize);
+  p = (LPWSTR)GlobalLock(glob);
+  wstring_buff(text,p,bufsize);
   GlobalUnlock(glob);
-  if (SetClipboardData(CF_TEXT,glob) == NULL) {
+  if (SetClipboardData(CF_UNICODETEXT,glob) == NULL) {
     CloseClipboard();
     return push_error(L);
   }
@@ -616,20 +477,20 @@ def put_clipboard_text(Str text) {
 
 /// Get the text on the clipboard.
 // @return the text
-// @function get_clipboard_text
-def get_clipboard_text() {
+// @function get_clipboard
+def get_clipboard() {
   HGLOBAL glob;
-  char *p;
+  LPCWSTR p;
   if (! OpenClipboard(NULL)) {
     return push_error(L);
   }
-  glob = GetClipboardData(CF_TEXT);
+  glob = GetClipboardData(CF_UNICODETEXT);
   if (glob == NULL) {
     CloseClipboard();
     return push_error(L);
   }
   p = GlobalLock(glob);
-  lua_pushstring(L,p);
+  push_wstring(L,p);
   GlobalUnlock(glob);
   CloseClipboard();
   return 1;
@@ -645,27 +506,31 @@ class Process {
 
   constructor(Int pid, HANDLE ph) {
     if (ph) {
-        this->pid = pid;
-        this->hProcess = ph;
+      this->pid = pid;
+      this->hProcess = ph;
     } else {
-        this->pid = pid;
-        this->hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
-                                    PROCESS_VM_READ,
-                                    FALSE, pid );
-        }
+      this->pid = pid;
+      this->hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
+                                  PROCESS_VM_READ,
+                                  FALSE, pid );
+      }
   }
 
   /// get the name of the process.
+  // @param full true if you want the full path; otherwise returns the base name.
   // @function get_process_name
-  def get_process_name() {
+  def get_process_name(Boolean full) {
     HMODULE hMod;
     DWORD cbNeeded;
-    char modname[MAX_PATH];
+    wchar_t modname[MAX_PATH];
 
     if (EnumProcessModules(this->hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
-      GetModuleBaseName(this->hProcess, hMod, modname, sizeof(modname));
-      lua_pushstring(L,modname);
-      return 1;
+      if (full) {
+        GetModuleFileNameExW(this->hProcess, hMod, modname, sizeof(modname));
+      } else {
+        GetModuleBaseNameW(this->hProcess, hMod, modname, sizeof(modname));
+      }
+      return push_wstring(L,modname);
     } else {
       return push_error(L);
     }
@@ -784,8 +649,7 @@ class Process {
 // @param pid the process id
 // @function process
 def process(Int pid) {
-  push_new_Process(L,pid,NULL);
-  return 1;
+  return push_new_Process(L,pid,NULL);
 }
 
 /// Process id of current process.
@@ -798,8 +662,7 @@ def current_pid() {
 /// Process object of the current process.
 // @function current_process
 def current_process() {
-  push_new_Process(L,0,GetCurrentProcess());
-  return 1;
+  return push_new_Process(L,0,GetCurrentProcess());
 }
 
 /// get all process ids in the system.
@@ -835,9 +698,7 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
   int n = lua_objlen(L,processes);
   HANDLE handles[MAXIMUM_WAIT_OBJECTS];
   if (n > MAXIMUM_WAIT_OBJECTS) {
-    lua_pushnil(L);
-    lua_pushliteral(L,"cannot wait on so many processes");
-    return 2;
+    return push_error_msg(L,"cannot wait on so many processes");
   }
   for (i = 0; i < n; i++) {
     lua_rawgeti(L,processes,i+1);
@@ -864,7 +725,6 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
   char *buf; \
   int bufsz; \
   HANDLE handle;
-
 
 typedef struct {
   callback_data_
@@ -903,6 +763,7 @@ void lcb_free(void *data) {
   release_ref(lcb->L,lcb->callback);
 }
 
+
 class Thread {
   LuaCallback *lcb;
   HANDLE thread;
@@ -913,36 +774,20 @@ class Thread {
   }
 
   def suspend() {
-    if (SuspendThread(this->thread) >= 0) {
-      return push_ok(L);
-    } else {
-      return push_error(L);
-    }
+    return push_bool(L, SuspendThread(this->thread) >= 0);
   }
 
   def resume() {
-    if (ResumeThread(this->thread) >= 0) {
-      return push_ok(L);
-    } else {
-      return push_error(L);
-    }
+    return push_bool(L, ResumeThread(this->thread) >= 0);
   }
 
   def kill() {
     lcb_free(this->lcb);
-    if (TerminateThread(this->thread,1)) {
-      return push_ok(L);
-    } else {
-      return push_error(L);
-    }
+    return push_bool(L, TerminateThread(this->thread,1));
   }
 
   def set_priority(Int p) {
-    if (SetThreadPriority(this->thread,p)) {
-      return push_ok(L);
-    } else {
-      return push_error(L);
-    }
+    return push_bool(L, SetThreadPriority(this->thread,p));
   }
 
   def get_priority() {
@@ -960,16 +805,14 @@ class Thread {
     CloseHandle(this->thread);
     return 0;
   }
-
 }
 
-typedef void (*ThreadCallback)(void *);
+typedef LPTHREAD_START_ROUTINE  TCB;
 
-int lcb_new_thread(ThreadCallback fun, void *data) {
+int lcb_new_thread(TCB fun, void *data) {
   LuaCallback *lcb = (LuaCallback*)data;
-  HANDLE thread = (HANDLE)_beginthread(fun,THREAD_STACK_SIZE,data);
-  push_new_Thread(lcb->L,lcb,thread);
-  return 1;
+  HANDLE thread = CreateThread(NULL,THREAD_STACK_SIZE,fun,data,0,NULL);
+  return push_new_Thread(lcb->L,lcb,thread);
 }
 
 #define lcb_buf(data) ((LuaCallback *)data)->buf
@@ -1037,7 +880,7 @@ class File {
   // @function read_async
   def read_async (Value callback) {
     this->callback = make_ref(L,callback);
-    return lcb_new_thread(&file_reader,this);
+    return lcb_new_thread((TCB)&file_reader,this);
   }
 
   def close() {
@@ -1065,7 +908,7 @@ class File {
 def spawn(Str program) {
   SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, 0};
   SECURITY_DESCRIPTOR sd;
-  STARTUPINFO si = {
+  STARTUPINFOW si = {
            sizeof(STARTUPINFO), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
        };
   HANDLE hPipeRead,hWriteSubProcess;
@@ -1100,9 +943,9 @@ def spawn(Str program) {
   si.hStdOutput = hPipeWrite;
   si.hStdError = hPipeWrite;
 
-  running = CreateProcess(
+  running = CreateProcessW(
         NULL,
-        (char*)program,
+        (LPWSTR)wstring(program),
         NULL, NULL,
         TRUE, CREATE_NEW_PROCESS_GROUP,
         NULL,
@@ -1156,7 +999,7 @@ def timer(Int msec, Value callback) {
   TimerData *data = (TimerData *)malloc(sizeof(TimerData));
   data->msec = msec;
   lcb_callback(data,L,callback);
-  return lcb_new_thread(&timer_thread,data);
+  return lcb_new_thread((TCB)&timer_thread,data);
 }
 
 #define PSIZE 512
@@ -1217,8 +1060,7 @@ def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
   if (hPipe == INVALID_HANDLE_VALUE) {
     return push_error(L);
   } else {
-    push_new_File(L,hPipe,hPipe);
-    return 1;
+    return push_new_File(L,hPipe,hPipe);
   }
 }
 
@@ -1234,14 +1076,13 @@ def server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
   PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
   lcb_callback(psp,L,callback);
   psp->pipename = pipename;
-  return lcb_new_thread(&pipe_server_thread,psp);
+  return lcb_new_thread((TCB)&pipe_server_thread,psp);
 }
 
 // Directory change notification ///////
 
 typedef struct {
   callback_data_
-  const char *dir;
   DWORD how;
   DWORD subdirs;
 } FileChangeParms;
@@ -1253,8 +1094,7 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
     // This fills in some gaps:
     // http://qualapps.blogspot.com/2010/05/understanding-readdirectorychangesw_19.html
     if (! ReadDirectoryChangesW(lcb_handle(fc),lcb_buf(fc),lcb_bufsz(fc),
-        fc->subdirs, fc->how, &bytes,NULL,NULL))
-    {
+        fc->subdirs, fc->how, &bytes,NULL,NULL))  {
       throw_error(fc->L,"read dir changes failed");
     }
     next = 0;
@@ -1264,7 +1104,7 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
       char outbuff[MAX_PATH];
       PFILE_NOTIFY_INFORMATION pni = (PFILE_NOTIFY_INFORMATION)(lcb_buf(fc)+next);
       outchars = WideCharToMultiByte(
-        CP_UTF8, 0,
+        get_encoding(), 0,
         pni->FileName,
         pni->FileNameLength/2, // it's bytes, not number of characters!
         outbuff,sizeof(outbuff),
@@ -1287,14 +1127,15 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
 // @function get_logical_drives
 def get_logical_drives() {
   int i, lasti = 0, k = 1;
-  const char *p = buff;
-  DWORD size = GetLogicalDriveStrings(sizeof(buff),buff);
+  char dbuff[4*26];
+  const char *p = dbuff;
+  DWORD size = GetLogicalDriveStrings(sizeof(dbuff),dbuff);
   lua_newtable(L);
   for (i = 0; i < size; i++) {
-    if (buff[i] == '\0') {
+    if (dbuff[i] == '\0') {
       lua_pushlstring(L,p, i - lasti);
       lua_rawseti(L,-2,k++);
-      p = buff + i+1;
+      p = dbuff + i+1;
       lasti = i+1;
     }
   }
@@ -1359,10 +1200,9 @@ def get_disk_free_space(Str root) {
 def watch_for_file_changes (Str dir, Int how, Boolean subdirs, Value callback) {
   FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
   lcb_callback(fc,L,callback);
-  fc->dir = dir;
   fc->how = how;
   fc->subdirs = subdirs;
-  lcb_handle(fc) = CreateFile(dir,
+  lcb_handle(fc) = CreateFileW(wstring(dir),
     FILE_LIST_DIRECTORY,
     FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
     NULL,
@@ -1374,7 +1214,7 @@ def watch_for_file_changes (Str dir, Int how, Boolean subdirs, Value callback) {
     return push_error(L);
   }
   lcb_allocate_buffer(fc,2048);
-  return lcb_new_thread(&file_change_thread,fc);
+  return lcb_new_thread((TCB)&file_change_thread,fc);
 }
 
 /// Class representing Windows registry keys.
@@ -1391,27 +1231,25 @@ class regkey {
   // @param val the value
   // @function set_value
   def set_value(Str name, Str val) {
-    if (RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) != ERROR_SUCCESS) {
-      return push_error(L);
-    } else {
-      return push_ok(L);
-    }
+    return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) == ERROR_SUCCESS);
   }
 
-  /// get the value and type of a name.
+  /// get t he value and type of a name.
   // @param name the name (can be empty for the default value)
   // @return the value (either a string or a number)
   // @return the type
   // @function get_value
   def get_value(Str name = "") {
-    DWORD type,size = sizeof(buff);
-    if (RegQueryValueEx(this->key,name,0,&type,buff,&size) != ERROR_SUCCESS) {
+    DWORD type,size = sizeof(wbuff);
+    if (RegQueryValueExW(this->key,wstring(name),0,&type,(void *)wbuff,&size) != ERROR_SUCCESS) {
       return push_error(L);
     }
-    if (type == REG_BINARY || type == REG_EXPAND_SZ || type == REG_SZ) {
-      lua_pushlstring(L,buff,size);
+    if (type == REG_BINARY) {
+      lua_pushlstring(L,(const char *)wbuff,size);
+    } else if (type == REG_EXPAND_SZ || type == REG_SZ) {
+      push_wstring(L,wbuff); //,size);
     } else {
-      lua_pushnumber(L,*(unsigned long *)buff);
+      lua_pushnumber(L,*(unsigned long *)wbuff);
     }
     lua_pushinteger(L,type);
     return 2;
@@ -1427,10 +1265,10 @@ class regkey {
     DWORD size;
     lua_newtable(L);
     while (1) {
-      size = sizeof(buff);
-      res = RegEnumKeyEx(this->key,i,buff,&size,NULL,NULL,NULL,NULL);
+      size = sizeof(wbuff);
+      res = RegEnumKeyExW(this->key,i,wbuff,&size,NULL,NULL,NULL,NULL);
       if (res != ERROR_SUCCESS) break;
-      lua_pushstring(L,buff);
+      push_wstring(L,wbuff);
       lua_rawseti(L,-2,i+1);
       ++i;
     }
@@ -1460,29 +1298,6 @@ class regkey {
 /// Registry Functions.
 // @section Registry
 
-static HKEY predefined_keys(Str key) {
-  #define check(predef) if (eq(key,#predef)) return predef;
-  check(HKEY_CLASSES_ROOT);
-  check(HKEY_CURRENT_CONFIG);
-  check(HKEY_CURRENT_USER);
-  check(HKEY_LOCAL_MACHINE);
-  check(HKEY_USERS);
-  #undef check
-  return NULL;
-}
-
-#define SLASH '\\'
-
-static HKEY split_registry_key(Str path, char *keypath) {
-  char key[MAX_KEY];
-  const char *slash = strchr(path,SLASH);
-  int i = (int)((DWORD_PTR)slash - (DWORD_PTR)path);
-  strncpy(key,path,i);
-  key[i] = '\0';
-  strcpy(keypath,path+i+1);
-  return predefined_keys(key);
-}
-
 /// Open a registry key.
 // @param path the full registry key
 // e.g [[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]
@@ -1492,16 +1307,14 @@ static HKEY split_registry_key(Str path, char *keypath) {
 def open_key(Str path, Boolean writeable) {
   HKEY hKey;
   DWORD access;
-  hKey = split_registry_key(path,buff);
+  char kbuff[1024];
+  hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
-    lua_pushnil(L);
-    lua_pushliteral(L,"unrecognized registry key");
-    return 2;
+    return push_error_msg(L,"unrecognized registry key");
   }
   access = writeable ? KEY_ALL_ACCESS : (KEY_READ | KEY_ENUMERATE_SUB_KEYS);
-  if (RegOpenKeyEx(hKey,buff,0,access,&hKey) == ERROR_SUCCESS) {
-    push_new_regkey(L,hKey);
-    return 1;
+  if (RegOpenKeyExW(hKey,wstring(kbuff),0,access,&hKey) == ERROR_SUCCESS) {
+    return push_new_regkey(L,hKey);
   } else {
     return push_error(L);
   }
@@ -1512,15 +1325,13 @@ def open_key(Str path, Boolean writeable) {
 // @return a regkey object
 // @function create_key
 def create_key (Str path) {
-  HKEY hKey = split_registry_key(path,buff);
+  char kbuff[1024];
+  HKEY hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
-    lua_pushnil(L);
-    lua_pushliteral(L,"unrecognized registry key");
-    return 2;
+    return push_error_msg(L,"unrecognized registry key");
   }
-  if (RegCreateKeyEx(hKey,buff,0,NULL,0,KEY_ALL_ACCESS,NULL,&hKey,NULL)) {
-    push_new_regkey(L,hKey);
-    return 1;
+  if (RegCreateKeyExW(hKey,wstring(kbuff),0,NULL,0,KEY_ALL_ACCESS,NULL,&hKey,NULL)) {
+    return push_new_regkey(L,hKey);
   } else {
     return push_error(L);
   }
@@ -1567,6 +1378,8 @@ end
 /*** Constants.
 The following constants are available:
 
+ * CP_ACP, (valid values for encoding)
+ * CP_UTF8,
  * SW_HIDE, (Window operations for Window.show)
  * SW_MAXIMIZE,
  * SW_MINIMIZE,
@@ -1614,6 +1427,8 @@ The following constants are available:
  // @table constants
 
 constants {
+  CP_ACP,
+  CP_UTF8,
   SW_HIDE,
   SW_MAXIMIZE,
   SW_MINIMIZE,
