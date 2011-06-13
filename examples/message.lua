@@ -1,18 +1,19 @@
 
 local W = require 'winapi'
 
-require 'message_constants'
-
-W.beep(0)
+--[[
+W.beep()
 W.sleep(300)
-W.beep(MB.ICONWARNING)
+W.beep 'warning'
 W.sleep(500)
-W.beep(MB.ICONERROR)
+W.beep 'error'
+]]
 
 
 
-W.show_message("Message","stuff",MB.YESNO + MB.ICONWARNING)
---W.show_message("Message","stuff",MB.OK + MB.ICONQUESTION)
+print(W.show_message("Message","stuff"))
+print(W.show_message("Message","stuff\nand nonsense","yes-no","warning"))
+
 
 
 

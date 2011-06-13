@@ -19,6 +19,7 @@ A useful set of Windows API functions.
 #ifdef __GNUC__
 #include <winable.h> /* GNU GCC specific */
 #endif
+#include "Winnetwk.h"
 #include <psapi.h>
 
 
@@ -46,7 +47,7 @@ static WStr wstring(Str text) {
 // @section encoding
 
 /// set the current text encoding.
-// @param e one of CP_ACP (Windows code page; default) and CP_UTF8
+// @param e one of `CP_ACP` (Windows code page; default) and `CP_UTF8`
 // @function set_encoding
 def set_encoding (Int e) {
   set_encoding(e);
@@ -54,12 +55,32 @@ def set_encoding (Int e) {
 }
 
 /// get the current text encoding.
-// @return either CP_ACP or CP_UTF8
+// @return either `CP_ACP` or `CP_UTF8`
 // @function get_encoding
 def get_encoding () {
   lua_pushinteger(L, get_encoding());
   return 1;
 }
+
+/// encode a string in another encoding.
+// Note: currently there's a limit of about 1K on the string buffer.
+// @param e_in `CP_ACP` or `CP_UTF8`
+// @param e_out `CP_UTF8` or `CP_ACP`
+// @param text the string
+// @function encode
+def encode(Int e_in, Int e_out, Str text) {
+  int ce = get_encoding();
+  LPCWSTR ws;
+  set_encoding(e_in);
+  ws = wstring(text);
+  set_encoding(e_out);
+  push_wstring(L,ws);
+  set_encoding(ce);
+  return 1;
+}
+
+// forward reference to Process constructor
+static int push_new_Process(lua_State *L,Int pid, HANDLE ph);
 
 /// a class representing a Window.
 // @type Window
@@ -208,6 +229,14 @@ class Window {
   def set_foreground () {
     lua_pushboolean(L,SetForegroundWindow(this->hwnd));
     return 1;
+  }
+
+  /// get the associated process of this window
+  // @function get_process
+  def get_process() {
+    DWORD pid;
+    DWORD res = GetWindowThreadProcessId(this->hwnd,&pid);
+    return push_new_Process(L,pid,NULL);
   }
 
   /// this window as string (up to 100 chars).
@@ -404,24 +433,30 @@ def sleep(Int millisec) {
   return 0;
 }
 
-#define MSG_DEFAULT MB_OK | MB_ICONINFORMATION
-#define BEEP_DEFAULT -1
-
 /// show a message box.
 // @param caption for dialog
 // @param msg the message
-// @param type dialog type (default MB_OK + MB_ICONINFORMATION)
+// @param btns (default 'ok') one of 'ok','ok-cancel','yes','yes-no',
+// "abort-retry-ignore", "retry-cancel", "yes-no-cancel"
+// @param icon (default 'information') one of 'information','question','warning','error'
+// @return a string giving the pressed button: one of 'ok','yes','no','cancel',
+// 'try','abort' and 'retry'
 // @function show_message
-def show_message(Str caption, Str msg, Int type = MSG_DEFAULT) {
-  lua_pushinteger(L, MessageBox( NULL, msg, caption, type));
+def show_message(Str caption, Str msg, Str btns = "ok", Str icon = "information") {
+  int res, type;
+  WCHAR capb [512];
+  type = mb_const(btns) | mb_const(icon);
+  wstring_buff(caption,capb,sizeof(capb));
+  res = MessageBoxW( NULL, wstring(msg), capb, type);
+  lua_pushstring(L,mb_result(res));
   return 1;
 }
 
 /// make a beep sound.
-// @type default is -1; can use MB_ICONINFORMATION, MB_ICONQUESTION, MB_ICONERROR, MB_OK
+// @param type (default 'ok'); one of 'information','question','warning','error'
 // @function beep
-def beep (Int type = BEEP_DEFAULT) {
-  return push_bool(L, MessageBeep(type));
+def beep (Str icon = "ok") {
+  return push_bool(L, MessageBeep(mb_const(icon)));
 }
 
 /// copy a file.
@@ -449,7 +484,7 @@ def move_file(Str src, Str dest) {
 // @param show the window show flags (default is SW_SHOWNORMAL)
 // @function shell_exec
 def shell_exec(StrNil verb, Str file, StrNil parms, StrNil dir, Int show=SW_SHOWNORMAL) {
-  push_bool(L, (DWORD_PTR)ShellExecute(NULL,verb,file,parms,dir,show) > 32);
+  return push_bool(L, (DWORD_PTR)ShellExecute(NULL,verb,file,parms,dir,show) > 32);
 }
 
 /// Copy text onto the clipboard.
@@ -1178,6 +1213,16 @@ def get_disk_free_space(Str root) {
   return 2;
 }
 
+def get_disk_network_name(Str root) {
+  DWORD size = sizeof(wbuff);
+  DWORD res = WNetGetConnectionW(wstring(root),wbuff,&size);
+  if (res == NO_ERROR) {
+    return push_wstring(L,wbuff);
+  } else {
+    return push_error(L);
+  }
+}
+
 //// start watching a directory.
 // @param dir the directory
 // @param how what events to monitor. Can be a sum of these flags:
@@ -1234,7 +1279,7 @@ class regkey {
     return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) == ERROR_SUCCESS);
   }
 
-  /// get t he value and type of a name.
+  /// get the value and type of a name.
   // @param name the name (can be empty for the default value)
   // @return the value (either a string or a number)
   // @return the type

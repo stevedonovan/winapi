@@ -1,6 +1,6 @@
 ## winapi A useful Windows API subset for Lua
 
-This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`.
+This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`.  Normally `winapi` works with the current Windows code page, but can be told to use UTF-8 with `set_encoding`; interally string operations are in Unicode.
 
 ### Creating and working with Processes
 
@@ -64,7 +64,7 @@ Having a `write` method means that, yes, you can capture an interactive process,
     >
     > proc:kill()
 
-(We also found it necessary in the [Lua for Windows]() project to switch off buffering for using Lua in SciTE)
+(We also found it necessary in the [Lua for Windows](http://code.google.com/p/luaforwindows/) project to switch off buffering for using Lua in SciTE)
 
 Note that reading the result also returns the prompt '>', which isn't so obvious if we're running Lua from within Lua itself. It's clearer when using Python:
 
@@ -180,7 +180,44 @@ After launching a window, you can make it the foreground window and send it text
 
 The little sleep is important: it gives the other process a chance to get going, and to create a new window which we can promote.
 
-### File and Directory Operations
+An important point is that you can choose to use UTF-8 encoding with winapi. This little program shows how:
+
+    local W = require 'winapi'
+    W.set_encoding(W.CP_UTF8)
+    win = W.foreground_window()
+    win:set_text 'ελληνική'
+
+When run in SciTE, it successfully puts a little bit of Greek in the title bar.
+
+
+### Working with Processes
+
+`current_process` will give you a process object for the current program. It's also possible to get a process object from a program's window:
+
+    > w = winapi.foreground_window()
+    > = w
+    Command Prompt - lua -lwinapi
+    > p = w:get_process()
+    > = p:get_process_name()
+    cmd.exe
+    > = p:get_process_name(true)
+    C:\WINDOWS\system32\cmd.exe
+
+(Note that the `get_process_name` method can optionally give you the full path to the process.)
+
+To get all the current processes:
+
+    pids = winapi.get_processes()
+
+    for _,pid in ipairs(pids) do
+       local P = winapi.process(pid)
+       local name = P:get_process_name(true)
+       if name then print(pid,name) end
+       P:close()
+    end
+
+
+### Drive and Directory Operations
 
 There are functions for querying the filesystem: `get_logical_drives()` returns all available drives (in 'D:\\' format) and `get_drive_type()` will tell you whether these drives are fixed, remote, removable, etc. `get_disk_free_space()` will return the space used and the space available in kB as two results.
 
@@ -194,15 +231,31 @@ There are functions for querying the filesystem: `get_logical_drives()` returns 
         else
             free = math.ceil(free/1024) -- get Mb
         end
-        print(drive,winapi.get_drive_type(drive),free)
+        local rname = ''
+        local dtype = winapi.get_drive_type(drive)
+        if dtype == 'remote' then  -- note it wants the drive letter!
+            rname = winapi.get_disk_network_name(drive:gsub('\\$',''))
+        end
+        print(drive,dtype,free,rname)
     end
 
-This script gives the following output on my machine:
+This script gives the following output on my home machine:
 
     C:\	fixed	218967
     F:\	fixed	1517
     G:\	cdrom	(The device is not ready.)
     Q:\	fixed	(Access is denied.)
+
+Or at work:
+
+    C:\	fixed	1455
+    D:\	fixed	49996
+    E:\	cdrom	(The device is not ready.)
+    G:\	remote	33844	\\CARL-VFILE\SYS
+    I:\	remote	452789	\\CARL-VFILE\GROUPS
+    X:\	remote	12160	\\CARL-VFILE\APPS
+    Y:\	remote	33844	\\CARL-VFILE\SYS\PUBLIC
+    Z:\	remote	33844	\\CARL-VFILE\SYS\PUBLIC
 
 A useful operation is watching directories for changes. You specify the directory, the kind of change to monitor and whether subdirectories should be checked. You also provide a function that will be called when something changes.
 
@@ -226,7 +279,17 @@ Using a callback means that you can watch multiple directories and still respond
 
 ### Output and Timers
 
-GUI applications do not have a console so `print` does not work. `show_message` will put up a message box to bother users, and `output_debug_string` will write text quietly to the debug stream. A utility such as [DebugView]() can be used to view this output, which shows it with a timestamp.
+GUI applications do not have a console so `print` does not work. `show_message` will put up a message box to bother users, and `output_debug_string` will write text quietly to the debug stream. A utility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647) can be used to view this output, which shows it with a timestamp.
+
+Here is the old favourite, system message boxes:
+
+    print(winapi.show_message("Message","stuff\nand nonsense","yes-no","warning"))
+
+The first parameter is the caption of the message box, the second is the text (which may contain line feeds); the third controls which buttons are to be shown, and the fourth is the icon to use. The function returns a string indicating which button has been pressed: 'ok','yes','no','cancel', etc.
+
+Or you may prefer to irritate the user with a sound:
+
+    winapi.beep 'warning'
 
 It is straightforward to create a timer. You could of course use `sleep` but then your application will do nothing but sleep most of the time. This callback-driven timer can run in the background:
 
@@ -239,6 +302,14 @@ Such callbacks can be made GUI-safe by first calling `use_gui` which ensures tha
 The basic rule for callbacks enforced by `winapi` is that only one may be active at a time; otherwise we would risk re-entering Lua using the same state. So be quick when responding to callbacks, since they effectively block Lua. For a console application, the best bet (after setting some timers and so forth) is just to sleep indefinitely:
 
     winapi.sleep(-1)
+
+To show what happens if you don't follow the rule:
+
+    > winapi.timer(500,function() end)
+    > = 23
+    nil     nil     return  23
+
+In short: completely messed!
 
 ### Reading from the Registry
 

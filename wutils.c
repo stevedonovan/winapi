@@ -238,3 +238,32 @@ HKEY split_registry_key(LPCSTR path, char *keypath) {
   strcpy(keypath,path+i+1);
   return predefined_keys(key);
 }
+
+
+int mb_const (LPCSTR name) {
+  if (eq(name,"ok")) return MB_OK;
+  if (eq(name,"abort-retry-ignore")) return MB_ABORTRETRYIGNORE;
+  if (eq(name,"ok-cancel")) return MB_OKCANCEL;
+  if (eq(name,"retry-cancel")) return MB_RETRYCANCEL;
+  if (eq(name,"yes-no")) return MB_YESNO;
+  if (eq(name,"yes-no-cancel")) return MB_YESNOCANCEL;
+  // icons
+  if (eq(name,"warning")) return MB_ICONWARNING;
+  if (eq(name,"information")) return MB_ICONINFORMATION;
+  if (eq(name,"question")) return MB_ICONQUESTION;
+  if (eq(name,"error")) return MB_ICONERROR;
+  return 0;
+}
+
+LPCSTR mb_result (int res) {
+  switch(res) {
+  case IDABORT: return "abort";
+  case IDCANCEL: return "cancel";
+  case IDIGNORE: return "ignore";
+  case IDNO: return "no";
+  case IDOK: return "ok";
+  case IDRETRY: return "retry";
+  case IDYES: return "yes";
+  default: return "?";
+  }
+}
