@@ -798,7 +798,10 @@ void lcb_free(void *data) {
   release_ref(lcb->L,lcb->callback);
 }
 
-
+/// Thread object. This is returned by the read_async method and the timer,
+// server and watch_for_file_changes functions. Useful to kill a thread
+// and free associated resources.
+// @type thread
 class Thread {
   LuaCallback *lcb;
   HANDLE thread;
@@ -808,23 +811,36 @@ class Thread {
     this->thread = thread;
   }
 
+  /// suspend this thread.
+  // @function suspend
   def suspend() {
     return push_bool(L, SuspendThread(this->thread) >= 0);
   }
 
+  /// resume a suspended thread.
+  // @function resume
   def resume() {
     return push_bool(L, ResumeThread(this->thread) >= 0);
   }
 
+  /// kill this thread. Generally considered a 'nuclear' option, but
+  // this implementation will free any associated callback references, buffers
+  // and handles.
+  // @function kill
   def kill() {
     lcb_free(this->lcb);
     return push_bool(L, TerminateThread(this->thread,1));
   }
 
+  /// set a thread's priority
+  // @param p positive integer to increase thread priority
+  // @function set_priority
   def set_priority(Int p) {
     return push_bool(L, SetThreadPriority(this->thread,p));
   }
 
+  /// get a thread's priority
+  // @function get_priority
   def get_priority() {
     int res = GetThreadPriority(this->thread);
     if (res != THREAD_PRIORITY_ERROR_RETURN) {
@@ -912,6 +928,7 @@ class File {
   /// asynchronous read.
   // @param callback function that will receive each chunk of text
   // as it comes in.
+  // @return a thread object.
   // @function read_async
   def read_async (Value callback) {
     this->callback = make_ref(L,callback);
@@ -1029,6 +1046,7 @@ static void timer_thread(TimerData *data) { // background timer thread
 // The callback can return true if it wishes to cancel the timer.
 // @param msec interval in millisec
 // @param callback a function to be called at each interval.
+// @return a thread object.
 // @function timer
 def timer(Int msec, Value callback) {
   TimerData *data = (TimerData *)malloc(sizeof(TimerData));
@@ -1106,6 +1124,7 @@ def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
 // @param callback a function that will be passed a File object
 // @param pipename Must be of the form \\.\pipe\name, defaults to
 // \\.\pipe\luawinapi.
+// @return a thread object.
 // @function server
 def server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
   PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
@@ -1241,6 +1260,7 @@ def get_disk_network_name(Str root) {
 // * FILE_ACTION_RENAMED_OLD_NAME
 // * FILE_ACTION_RENAMED_NEW_NAME
 //
+// @return a thread object.
 // @function watch_for_file_changes
 def watch_for_file_changes (Str dir, Int how, Boolean subdirs, Value callback) {
   FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
