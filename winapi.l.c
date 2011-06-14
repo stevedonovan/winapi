@@ -32,6 +32,8 @@ A useful set of Windows API functions.
 #define MAX_WATCH 20
 #define MAX_WPATH 1024
 
+#define TIMEOUT(timeout) timeout == 0 ? INFINITE : timeout
+
 static wchar_t wbuff[WBUFF];
 
 typedef LPCWSTR WStr;
@@ -243,11 +245,16 @@ class Window {
   /// this window as string (up to 100 chars).
   // @function __tostring
   def __tostring() {
+    int ret;
     int sz = GetWindowTextW(this->hwnd,wbuff,sizeof(wbuff));
     if (sz > MAX_SHOW) {
       wbuff[MAX_SHOW] = '\0';
     }
-    return push_wstring(L,wbuff);
+    ret = push_wstring(L,wbuff);
+    if (ret == 2) { // we had a conversion error
+      lua_pushliteral(L,"");
+    }
+    return 1;
   }
 
   def __eq(Window other) {
@@ -650,13 +657,7 @@ class Process {
     return 2;
   }
 
-  /// wait for this process to finish.
-  // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
-  // @return this process object
-  // @return either "OK" or "TIMEOUT"
-  // @function wait
-  def wait(Int timeout = 0) {
-    DWORD res = WaitForSingleObject(this->hProcess, timeout == 0 ? INFINITE : timeout);
+  static int push_wait_result(lua_State *L, DWORD res) {
     if (res == WAIT_OBJECT_0) {
         lua_pushvalue(L,1);
         lua_pushliteral(L,"OK");
@@ -668,6 +669,25 @@ class Process {
     } else {
         return push_error(L);
     }
+  }
+
+  /// wait for this process to finish.
+  // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
+  // @return this process object
+  // @return either "OK" or "TIMEOUT"
+  // @function wait
+  def wait(Int timeout = 0) {
+    return push_wait_result(L, WaitForSingleObject(this->hProcess, TIMEOUT(timeout)));
+  }
+
+  /// wait for this process to become idle and ready for input.
+  // Only makes sense for processes with windows (will return immediately if not)
+  // @param timeout optional timeout in millisec
+  // @return this process object
+  // @return either "OK" or "TIMEOUT"
+  // @function wait_for_input_idle
+  def wait_for_input_idle (Int timeout = 0) {
+    return push_wait_result(L, WaitForInputIdle(this->hProcess, TIMEOUT(timeout)));
   }
 
   /// exit code of this process.
@@ -759,7 +779,7 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
     p = Process_arg(L,-1);
     handles[i] = p->hProcess;
   }
-  status = WaitForMultipleObjects(n, handles, all, timeout == 0 ? INFINITE : timeout);
+  status = WaitForMultipleObjects(n, handles, all, TIMEOUT(timeout));
   status -= WAIT_OBJECT_0 + 1;
   if (status < 1 || status > n) {
     return push_error(L);
