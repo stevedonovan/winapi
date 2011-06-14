@@ -125,7 +125,7 @@ class Window {
   }
 
   /// Change the visibility, state etc
-  // @param flags one of SW_SHOW, SW_MAXIMIZE, etc
+  // @param flags one of `SW_SHOW`, `SW_MAXIMIZE`, etc
   // @function show
   def show(Int flags = SW_SHOW) {
     ShowWindow(this->hwnd,flags);
@@ -557,8 +557,7 @@ def get_clipboard() {
 }
 
 /// A class representing a Windows process.
-// this example was very helpful:
-// http://msdn.microsoft.com/en-us/library/ms682623%28VS.85%29.aspx
+// this example was [helpful](http://msdn.microsoft.com/en-us/library/ms682623%28VS.85%29.aspx)
 // @type Process
 class Process {
   HANDLE hProcess;
@@ -837,10 +836,10 @@ void lcb_free(void *data) {
   release_ref(lcb->L,lcb->callback);
 }
 
-/// Thread object. This is returned by the read_async method and the timer,
-// server and watch_for_file_changes functions. Useful to kill a thread
+/// Thread object. This is returned by the `read_async` method and the `timer`,
+// `server` and `watch_for_file_changes` functions. Useful to kill a thread
 // and free associated resources.
-// @type thread
+// @type Thread
 class Thread {
   LuaCallback *lcb;
   HANDLE thread;
@@ -1291,19 +1290,19 @@ def get_disk_network_name(Str root) {
 // @param dir the directory
 // @param how what events to monitor. Can be a sum of these flags:
 //
-//  * FILE_NOTIFY_CHANGE_FILE_NAME
-//  * FILE_NOTIFY_CHANGE_DIR_NAME
-//  * FILE_NOTIFY_CHANGE_LAST_WRITE
+//  * `FILE_NOTIFY_CHANGE_FILE_NAME`
+//  * `FILE_NOTIFY_CHANGE_DIR_NAME`
+//  * `FILE_NOTIFY_CHANGE_LAST_WRITE`
 //
 // @param subdirs whether subdirectories should be monitored
 // @param callback a function which will receive the kind of change
 // plus the filename that changed. The change will be one of these:
 //
-// * FILE_ACTION_ADDED
-// * FILE_ACTION_REMOVED
-// * FILE_ACTION_MODIFIED
-// * FILE_ACTION_RENAMED_OLD_NAME
-// * FILE_ACTION_RENAMED_NEW_NAME
+// * `FILE_ACTION_ADDED`
+// * `FILE_ACTION_REMOVED`
+// * `FILE_ACTION_MODIFIED`
+// * `FILE_ACTION_RENAMED_OLD_NAME`
+// * `FILE_ACTION_RENAMED_NEW_NAME`
 //
 // @return a thread object.
 // @function watch_for_file_changes
