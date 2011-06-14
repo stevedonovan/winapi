@@ -19,7 +19,8 @@ void set_encoding(int e);
 int get_encoding();
 
 LPWSTR wstring_buff(LPCSTR text, LPWSTR wbuf, int bufsz);
-int push_wstring(lua_State *L,LPCWSTR us);
+int push_wstring_l(lua_State *L, LPCWSTR us, int len);
+int push_wstring(lua_State *L, LPCWSTR us);
 
 HKEY split_registry_key(Str path, char *keypath);
 

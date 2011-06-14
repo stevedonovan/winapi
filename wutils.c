@@ -196,9 +196,7 @@ LPWSTR wstring_buff(LPCSTR text, LPWSTR wbuf, int bufsz) {
   }
 }
 
-
-int push_wstring(lua_State *L,LPCWSTR us) {
-  int len = wcslen(us);
+int push_wstring_l(lua_State *L, LPCWSTR us, int len) {
   int osz = 3*len;
   char *obuff = malloc(osz);
   int res = WideCharToMultiByte(
@@ -214,6 +212,11 @@ int push_wstring(lua_State *L,LPCWSTR us) {
     free(obuff);
     return 1;
   }
+}
+
+int push_wstring(lua_State *L,LPCWSTR us) {
+  int len = wcslen(us);
+  return push_wstring_l(L,us,len);
 }
 
 static HKEY predefined_keys(LPCSTR key) {

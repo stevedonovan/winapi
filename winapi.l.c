@@ -30,6 +30,7 @@ A useful set of Windows API functions.
 #define MAX_KEYS 512
 #define FILE_BUFF_SIZE 2048
 #define MAX_WATCH 20
+#define MAX_WPATH 1024
 
 static wchar_t wbuff[WBUFF];
 
@@ -476,6 +477,8 @@ def move_file(Str src, Str dest) {
   return push_bool(L, MoveFile(src,dest));
 }
 
+#define wconv(name) (name ? wstring_buff(name,w##name,sizeof(w##name)) : NULL)
+
 /// execute a shell command.
 // @param verb the action (e.g. 'open' or 'edit') can be nil.
 // @param file the command
@@ -484,7 +487,22 @@ def move_file(Str src, Str dest) {
 // @param show the window show flags (default is SW_SHOWNORMAL)
 // @function shell_exec
 def shell_exec(StrNil verb, Str file, StrNil parms, StrNil dir, Int show=SW_SHOWNORMAL) {
-  return push_bool(L, (DWORD_PTR)ShellExecute(NULL,verb,file,parms,dir,show) > 32);
+  WCHAR wverb[128], wfile[MAX_WPATH], wdir[MAX_WPATH], wparms[MAX_WPATH];
+  int res = (DWORD_PTR)ShellExecuteW(NULL,wconv(verb),wconv(file),wconv(parms),wconv(dir),show) > 32;
+  return push_bool(L, res);
+}
+
+/// set an environment variable for this process.
+// Any child process inherits the environment.
+// Note that this can't affect any system environment variables, see
+// [here](http://msdn.microsoft.com/en-us/library/ms682653%28VS.85%29.aspx)
+// for how to set these.
+// @param name name of variable
+// @param value value to set
+// @function setenv
+def setenv(Str name, Str value) {
+  WCHAR wname[256],wvalue[MAX_WPATH];
+  return push_bool(L, SetEnvironmentVariableW(wconv(name),wconv(value)));
 }
 
 /// Copy text onto the clipboard.
@@ -591,21 +609,22 @@ class Process {
   }
 
   /// get the start time of this process.
-  // @return a table containing year, month, etc fields.
+  // @return a table in the same format as os.time() and os.date() expects.
   // @function start_time
   def start_time() {
-    FILETIME create,exit,kernel,user;
+    FILETIME create,exit,kernel,user,local;
     SYSTEMTIME time;
     GetProcessTimes(this->hProcess,&create,&exit,&kernel,&user);
-    FileTimeToSystemTime(&create,&time);
+    FileTimeToLocalFileTime(&create,&local);
+    FileTimeToSystemTime(&local,&time);
     #define set(name,val) lua_pushinteger(L,val); lua_setfield(L,-2,#name);
     lua_newtable(L);
     set(year,time.wYear);
     set(month,time.wMonth);
     set(day,time.wDay);
     set(hour,time.wHour);
-    set(minute,time.wMinute);
-    set(second,time.wSecond);
+    set(min,time.wMinute);
+    set(sec,time.wSecond);
     #undef set
     return 1;
   }
@@ -953,15 +972,17 @@ class File {
 
 /// Spawn a process.
 // @param program the command-line (program + parameters)
+// @param dir the working directory for the process (optional)
 // @return a process object
 // @return a File object
 // @see File, Process
 // @function spawn
-def spawn(Str program) {
+def spawn(Str program, StrNil dir) {
+  WCHAR wdir [MAX_WPATH];
   SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, 0};
   SECURITY_DESCRIPTOR sd;
   STARTUPINFOW si = {
-           sizeof(STARTUPINFO), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+           sizeof(STARTUPINFOW), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
        };
   HANDLE hPipeRead,hWriteSubProcess;
   HANDLE hRead2,hPipeWrite;
@@ -1001,7 +1022,7 @@ def spawn(Str program) {
         NULL, NULL,
         TRUE, CREATE_NEW_PROCESS_GROUP,
         NULL,
-        NULL,
+        wconv(dir),
         &si, &pi);
 
   if (running) {
@@ -1181,13 +1202,13 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
 // @function get_logical_drives
 def get_logical_drives() {
   int i, lasti = 0, k = 1;
-  char dbuff[4*26];
-  const char *p = dbuff;
-  DWORD size = GetLogicalDriveStrings(sizeof(dbuff),dbuff);
+  WCHAR dbuff[MAX_WPATH];
+  LPWSTR p = dbuff;
+  DWORD size = GetLogicalDriveStringsW(sizeof(dbuff),dbuff);
   lua_newtable(L);
   for (i = 0; i < size; i++) {
     if (dbuff[i] == '\0') {
-      lua_pushlstring(L,p, i - lasti);
+      push_wstring_l(L,p, i - lasti);
       lua_rawseti(L,-2,k++);
       p = dbuff + i+1;
       lasti = i+1;
@@ -1232,6 +1253,10 @@ def get_disk_free_space(Str root) {
   return 2;
 }
 
+/// get the network resource associated with this drive.
+// @param root drive name in the form 'X:'
+// @return UNC name
+// @function get_disk_network_name
 def get_disk_network_name(Str root) {
   DWORD size = sizeof(wbuff);
   DWORD res = WNetGetConnectionW(wstring(root),wbuff,&size);
