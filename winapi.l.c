@@ -74,10 +74,18 @@ def get_encoding () {
 def encode(Int e_in, Int e_out, Str text) {
   int ce = get_encoding();
   LPCWSTR ws;
-  set_encoding(e_in);
-  ws = wstring(text);
-  set_encoding(e_out);
-  push_wstring(L,ws);
+  if (e_in != -1) {
+    set_encoding(e_in);
+    ws = wstring(text);
+  } else {
+    ws = (LPCWSTR)text;
+  }
+  if (e_out != -1) {
+    set_encoding(e_out);
+    push_wstring(L,ws);
+  } else {
+    lua_pushlstring(L,(LPCSTR)ws,wcslen(ws));
+  }
   set_encoding(ce);
   return 1;
 }
@@ -554,6 +562,16 @@ def get_clipboard() {
   GlobalUnlock(glob);
   CloseClipboard();
   return 1;
+}
+
+def short_path_name(Str path) {
+  WCHAR wpath[MAX_WPATH];
+  int res = GetShortPathNameW(wconv(path),wbuff,sizeof(wbuff));
+  if (res > 0) {
+    return push_wstring(L,wbuff);
+  } else {
+    return push_error(L);
+  }
 }
 
 /// A class representing a Windows process.
