@@ -1910,7 +1910,7 @@ static int l_create_key(lua_State *L) {
   }
 }
 
-#line 1503 "winapi.l.c"
+#line 1537 "winapi.l.c"
 static const char *lua_code_block = ""\
   "function winapi.execute(cmd)\n"\
   "   cmd = os.getenv('COMSPEC')..' /c '..cmd\n"\
@@ -1947,13 +1947,47 @@ static const char *lua_code_block = ""\
   "function winapi.find_window_match(text)\n"\
   "  return winapi.find_window_ex(winapi.match_name(text))\n"\
   "end\n"\
+  "function winapi.tmpname () return os.getenv('TEMP')..os.tmpname() end\n"\
+  "function winapi.execute_unicode(cmd)\n"\
+  "   local tmpfile = winapi.tmpname()\n"\
+  "   cmd = os.getenv('COMSPEC')..' /u /c '..cmd..' > \"'..tmpfile..'\"'\n"\
+  "   local P,err = winapi.spawn(cmd)\n"\
+  "   if not P then return nil,err end\n"\
+  "   local res,f,out\n"\
+  "   res = P:wait():exit_code()\n"\
+  "   f = io.open(tmpfile)\n"\
+  "   out = f:read '*a'\n"\
+  "   f:close()\n"\
+  "   os.remove(tmpfile)\n"\
+  "   out, err = winapi.encode(-1,winapi.CP_UTF8,out)\n"\
+  "   if err then return nil,err end\n"\
+  "   return res,out\n"\
+  "end\n"\
+  "local function exec_cmd (cmd,arg)\n"\
+  "    local res,err = winapi.execute(cmd..' \"'..arg..'\"')\n"\
+  "    if res == 0 then return true\n"\
+  "    else return nil,err\n"\
+  "    end\n"\
+  "end\n"\
+  "function winapi.mkdir(dir) return exec_cmd('mkdir',dir) end\n"\
+  "function winapi.rmdir(dir) return exec_cmd('rmdir',dir) end\n"\
+  "function winapi.delete(file) return exec_cmd('del',file) end\n"\
+  "function winapi.get_files(mask,subdirs,attrib)\n"\
+  "    local flags = '/B '\n"\
+  "    if subdirs then flags = flags..' /S' end\n"\
+  "    if attrib then flags = flags..' /A:'..attrib end\n"\
+  "    local ret, text = winapi.execute_unicode('dir '..flags..' \"'..mask..'\"')\n"\
+  "    if ret ~= 0 then return nil,text end\n"\
+  "    return text:gmatch('[^\\r\\n]+')\n"\
+  "end\n"\
+  "function winapi.get_dirs(mask,subdirs) return winapi.get_files(mask,subdirs,'D') end\n"\
 ;
 static void load_lua_code (lua_State *L) {
   luaL_dostring(L,lua_code_block);
 }
 
 
-#line 1505 "winapi.l.c"
+#line 1539 "winapi.l.c"
 
 /*** Constants.
 The following constants are available:
@@ -2001,15 +2035,15 @@ The following constants are available:
  * FILE\_ACTION\_RENAMED\_NEW\_NAME
 
  @section constants
- */#line 1551 "winapi.l.c"
+ */#line 1585 "winapi.l.c"
 
 
- #line 1553 "winapi.l.c"
+ #line 1587 "winapi.l.c"
 
  /// useful Windows API constants
  // @table constants
 
-#line 1598 "winapi.l.c"
+#line 1632 "winapi.l.c"
 static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,CP_ACP); lua_setfield(L,-2,"CP_ACP");
  lua_pushinteger(L,CP_UTF8); lua_setfield(L,-2,"CP_UTF8");
@@ -2054,7 +2088,7 @@ static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,FILE_ACTION_RENAMED_NEW_NAME); lua_setfield(L,-2,"FILE_ACTION_RENAMED_NEW_NAME");
 }
 
-#line 1600 "winapi.l.c"
+#line 1634 "winapi.l.c"
 static const luaL_reg winapi_funs[] = {
        {"set_encoding",l_set_encoding},
    {"get_encoding",l_get_encoding},

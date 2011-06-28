@@ -191,7 +191,7 @@ M.define('lua',function(get)
     local code_name = 'lua_code_block'
     local out = {'static const char *'.. code_name .. ' = ""\\'}
     for line in block:gmatch('([^\r\n]+)') do
-        line = line:gsub('\\','\\\\')
+        line = line:gsub('\\','\\\\'):gsub('"','\\"')
         append(out,'  "'..line..'\\n"\\')
     end
     append(out,';')
