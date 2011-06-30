@@ -367,7 +367,7 @@ On the client side:
     print(f:read()) -- DOG
     f:close()
 
-Another simularity with sockets is that you can connect to remote pipes (see [pipe names](http://msdn.microsoft.com/en-us/library/aa365783(v=vs.85).aspx))
+Another similarity with sockets is that you can connect to remote pipes (see [pipe names](http://msdn.microsoft.com/en-us/library/aa365783(v=vs.85).aspx))
 
 
 
