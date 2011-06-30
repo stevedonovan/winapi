@@ -66,9 +66,9 @@ def get_encoding () {
 }
 
 /// encode a string in another encoding.
-// Note: currently there's a limit of about 1K on the string buffer.
-// @param e_in `CP_ACP` or `CP_UTF8`
-// @param e_out `CP_UTF8` or `CP_ACP`
+// Note: currently there's a limit of about 2K on the string buffer.
+// @param e_in `CP_ACP`, `CP_UTF8` or `CP_UTF16`
+// @param e_out likewise
 // @param text the string
 // @function encode
 def encode(Int e_in, Int e_out, Str text) {
@@ -84,9 +84,48 @@ def encode(Int e_in, Int e_out, Str text) {
     set_encoding(e_out);
     push_wstring(L,ws);
   } else {
-    lua_pushlstring(L,(LPCSTR)ws,wcslen(ws));
+    lua_pushlstring(L,(LPCSTR)ws,wcslen(ws)*sizeof(WCHAR));
   }
   set_encoding(ce);
+  return 1;
+}
+
+/// expand unicode escapes in a string.
+// @param text ASCII text with %uXXXX, where XXXX is four hex digits. %% means % itself.
+// @return text as UTF-8
+// @function uexpand
+def uexpand(Str text) {
+  int len = strlen(text), i = 0, enc = get_encoding();
+  WCHAR wch;
+  LPWSTR P = wbuff;
+  if (len > sizeof(wbuff)) {
+    return push_error_msg(L,"string too big");
+  }
+  while (i <= len) {
+    if (text[i] == '%') {
+      ++i;
+      if (text[i] == '%') {
+        wch = '%';
+      } else
+      if (text[i] == 'u' && len-i > 4) {
+        char hexnum[5];
+        strncpy(hexnum,text+i+1,4);
+        hexnum[4] = '\0';
+        wch = strtol(hexnum,NULL,16);
+        i += 4;
+      } else {
+        return push_error_msg(L,"bad % escape");
+      }
+    } else {
+      wch = (WCHAR)text[i];
+    }
+    *P++ = wch;
+    ++i;
+  }
+  *P++ = 0;
+  set_encoding(CP_UTF8);
+  push_wstring(L,wbuff);
+  set_encoding(enc);
   return 1;
 }
 
@@ -438,8 +477,8 @@ def tile_windows(Window parent, Boolean horiz, Value kids, Value bounds) {
   return 0;
 }
 
-/// Miscelaneous functions.
-// @section Miscelaneous
+/// Miscellaneous functions.
+// @section miscellaneous
 
 /// sleep and use no processing time.
 // @param millisec sleep period
@@ -507,19 +546,6 @@ def shell_exec(StrNil verb, Str file, StrNil parms, StrNil dir, Int show=SW_SHOW
   return push_bool(L, res);
 }
 
-/// set an environment variable for this process.
-// Any child process inherits the environment.
-// Note that this can't affect any system environment variables, see
-// [here](http://msdn.microsoft.com/en-us/library/ms682653%28VS.85%29.aspx)
-// for how to set these.
-// @param name name of variable
-// @param value value to set
-// @function setenv
-def setenv(Str name, Str value) {
-  WCHAR wname[256],wvalue[MAX_WPATH];
-  return push_bool(L, SetEnvironmentVariableW(wconv(name),wconv(value)));
-}
-
 /// Copy text onto the clipboard.
 // @param text the text
 // @function set_clipboard
@@ -562,16 +588,6 @@ def get_clipboard() {
   GlobalUnlock(glob);
   CloseClipboard();
   return 1;
-}
-
-def short_path_name(Str path) {
-  WCHAR wpath[MAX_WPATH];
-  int res = GetShortPathNameW(wconv(path),wbuff,sizeof(wbuff));
-  if (res > 0) {
-    return push_wstring(L,wbuff);
-  } else {
-    return push_error(L);
-  }
 }
 
 /// A class representing a Windows process.
@@ -1007,6 +1023,18 @@ class File {
 /// Launching processes.
 // @section Launch
 
+/// set an environment variable for any child processes.
+// Note that this can't affect any system environment variables, see
+// [here](http://msdn.microsoft.com/en-us/library/ms682653%28VS.85%29.aspx)
+// for how to set these.
+// @param name name of variable
+// @param value value to set
+// @function setenv
+def setenv(Str name, Str value) {
+  WCHAR wname[256],wvalue[MAX_WPATH];
+  return push_bool(L, SetEnvironmentVariableW(wconv(name),wconv(value)));
+}
+
 /// Spawn a process.
 // @param program the command-line (program + parameters)
 // @param dir the working directory for the process (optional)
@@ -1082,6 +1110,12 @@ def spawn(Str program, StrNil dir) {
 // @return status code
 // @return program output
 // @function execute
+
+/// execute a system command in Unicode mode.
+// @param cmd a built-in command like dir
+// @return return code
+// @return text as UTF-8
+// @function execute_unicode
 
 // Timer support //////////
 typedef struct {
@@ -1231,8 +1265,71 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
   }
 }
 
-/// Drive information and watching directories.
+/// Drive information and directories.
 // @section Directories
+
+/// the short path name of a directory or file.
+// This is always in ASCII, 8.3 format. This function will create the
+// file first if it does not exist; the result can be used to open
+// files with unicode names.
+// @param path multibyte encoded file path
+// @return ASCII 8.3 format file path
+// @function short_path_name
+def short_path_name(Str path) {
+  WCHAR wpath[MAX_WPATH];
+  HANDLE hFile;
+  int res;
+  wconv(path);
+  // if the file doesn't exist, then force its creation
+  hFile = CreateFileW(wpath,
+    GENERIC_WRITE,
+    FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+    CREATE_NEW,
+    FILE_ATTRIBUTE_NORMAL,
+    NULL);
+  if (hFile == INVALID_HANDLE_VALUE) {
+    if (GetLastError() != ERROR_FILE_EXISTS) // that error is fine!
+      return push_error(L);
+  } else { // if we created it successfully, then close.
+    CloseHandle(hFile);
+  }
+  res = GetShortPathNameW(wpath,wbuff,sizeof(wbuff));
+  if (res > 0) {
+    return push_wstring(L,wbuff);
+  } else {
+    return push_error(L);
+  }
+}
+
+/// get a temporary filename.
+// (Don't use os.tmpname)
+// @return full path within temporary files directory.
+// @function tmpname
+
+/// delete a file or directory.
+// @param file may be a wildcard
+// @function delete
+
+/// make a directory.
+// Will make necessary subpaths if command extensions are enabled.
+// @function mkdir
+
+/// remove a directory.
+// @param dir the directory
+// @param tree if true, clean out the directory tree
+// @function rmdir
+
+/// iterator over directory contents.
+// @param mask a file mask like "*.txt"
+// @param subdirs iterate over subdirectories (default no)
+// @param attrib iterate over items with given attribute (as in dir /A:)
+// @function get_files
+
+/// iterate over subdirectories
+// @param file mask like "mydirs\\t*"
+// @param subdirs iterate over subdirectories (default no)
+// @see get_files
+// @function get_dirs
 
 /// get all the drives on this computer.
 // @return a table of drive names
@@ -1523,7 +1620,7 @@ local function exec_cmd (cmd,arg)
     end
 end
 function winapi.mkdir(dir) return exec_cmd('mkdir',dir) end
-function winapi.rmdir(dir) return exec_cmd('rmdir',dir) end
+function winapi.rmdir(dir,tree) return exec_cmd('rmdir '.. (tree and '/S'),dir) end
 function winapi.delete(file) return exec_cmd('del',file) end
 function winapi.get_files(mask,subdirs,attrib)
     local flags = '/B '
@@ -1535,6 +1632,7 @@ function winapi.get_files(mask,subdirs,attrib)
 end
 function winapi.get_dirs(mask,subdirs) return winapi.get_files(mask,subdirs,'D') end
 }
+
 
 /*** Constants.
 The following constants are available:
@@ -1587,9 +1685,12 @@ The following constants are available:
  /// useful Windows API constants
  // @table constants
 
+#define CP_UTF16 -1
+
 constants {
   CP_ACP,
   CP_UTF8,
+  CP_UTF16,
   SW_HIDE,
   SW_MAXIMIZE,
   SW_MINIMIZE,
