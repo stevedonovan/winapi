@@ -112,7 +112,7 @@ static int l_encode(lua_State *L) {
   return 1;
 }
 
-/// expand unicode escapes in a string.
+/// expand # unicode escapes in a string.
 // @param text ASCII text with #XXXX, where XXXX is four hex digits. ## means # itself.
 // @return text as UTF-8
 // @function utf8_expand
@@ -227,7 +227,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
     return 0;
   }
 
-  /// Change the visibility, state etc
+  /// change the visibility, state etc
   // @param flags one of `SW_SHOW`, `SW_MAXIMIZE`, etc
   // @function show
   static int l_Window_show(lua_State *L) {
@@ -480,7 +480,7 @@ static int l_find_window(lua_State *L) {
 // @return a window object.
 // @function find_window_match
 
-/// currently foreground window.
+/// current foreground window.
 // @return a window object
 // @function get_foreground_window
 static int l_get_foreground_window(lua_State *L) {
@@ -489,7 +489,7 @@ static int l_get_foreground_window(lua_State *L) {
 
 /// the desktop window.
 // @return a window object
-// @usage winapi.desktop_window():get_bounds()
+// @usage winapi.get_desktop_window():get_bounds()
 // @function get_desktop_window
 static int l_get_desktop_window(lua_State *L) {
   return push_new_Window(L, GetDesktopWindow());
@@ -707,7 +707,7 @@ static int l_shell_exec(lua_State *L) {
   return push_bool(L, res);
 }
 
-/// Copy text onto the clipboard.
+/// copy text onto the clipboard.
 // @param text the text
 // @function set_clipboard
 static int l_set_clipboard(lua_State *L) {
@@ -732,7 +732,7 @@ static int l_set_clipboard(lua_State *L) {
   return 0;
 }
 
-/// Get the text on the clipboard.
+/// get the text on the clipboard.
 // @return the text
 // @function get_clipboard
 static int l_get_clipboard(lua_State *L) {
@@ -988,7 +988,7 @@ static void Process_register (lua_State *L) {
 /// Working with processes.
 // @section Processes
 
-/// Create a process object from the id.
+/// create a process object from the id.
 // @param pid the process id
 // @function Process
 static int l_Process(lua_State *L) {
@@ -997,14 +997,14 @@ static int l_Process(lua_State *L) {
   return push_new_Process(L,pid,NULL);
 }
 
-/// Process id of current process.
+/// process id of current process.
 // @function get_current_pid
 static int l_get_current_pid(lua_State *L) {
   lua_pushinteger(L,GetCurrentProcessId());
   return 1;
 }
 
-/// Process object of the current process.
+/// process object of the current process.
 // @function get_current_process
 static int l_get_current_process(lua_State *L) {
   return push_new_Process(L,0,GetCurrentProcess());
@@ -1032,7 +1032,7 @@ static int l_get_processes(lua_State *L) {
   return 1;
 }
 
-/// Wait for a group of processes
+/// wait for a group of processes
 // @param processes an array of process objects
 // @param all wait for all processes to finish (default false)
 // @param timeout wait upto this time in msec (default infinite)
@@ -1466,12 +1466,12 @@ static int l_spawn_process(lua_State *L) {
   }
 }
 
-/// Execute a system command.
-// This is like os.execute(), except that it works without ugly
+/// execute a system command.
+// This is like `os.execute()`, except that it works without ugly
 // console flashing in Windows GUI applications. It additionally
 // returns all text read from stdout and stderr.
 // @param cmd a shell command (may include redirection, etc)
-// @param unicode if true force built-in commands to output in unicode;
+// @param unicode if 'unicode' force built-in commands to output in unicode;
 // in this case the result is always UTF-8
 // @return return code
 // @return program output
@@ -1552,7 +1552,7 @@ static void pipe_server_thread(PipeServerParms *parms) {
 /// Dealing with named pipes.
 // @section Pipes
 
-/// Open a pipe for reading and writing.
+/// open a pipe for reading and writing.
 // @param pipename the pipename (default is "\\\\.\\pipe\\luawinapi")
 // @function open_pipe
 static int l_open_pipe(lua_State *L) {
@@ -1574,7 +1574,7 @@ static int l_open_pipe(lua_State *L) {
   }
 }
 
-/// Create a named pipe server.
+/// create a named pipe server.
 // This goes into a background loop, and accepts client connections.
 // For each new connection, the callback will be called with a File
 // object for reading and writing to the client.
@@ -1678,7 +1678,7 @@ static int l_short_path(lua_State *L) {
 
 /// delete a file or directory.
 // @param file may be a wildcard
-// @function delete
+// @function delete_file_or_dir
 
 /// make a directory.
 // Will make necessary subpaths if command extensions are enabled.
@@ -1690,6 +1690,7 @@ static int l_short_path(lua_State *L) {
 // @function remove_dir
 
 /// iterator over directory contents.
+// @usage for f in winapi.get_files 'dir\\*.txt' do print(f) end
 // @param mask a file mask like "*.txt"
 // @param subdirs iterate over subdirectories (default no)
 // @param attrib iterate over items with given attribute (as in dir /A:)
@@ -1728,7 +1729,7 @@ static int l_get_logical_drives(lua_State *L) {
 // @function get_drive_type
 static int l_get_drive_type(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1356 "winapi.l.c"
+  #line 1357 "winapi.l.c"
   UINT res = GetDriveType(root);
   const char *type;
   switch(res) {
@@ -1751,7 +1752,7 @@ static int l_get_drive_type(lua_State *L) {
 // @function get_disk_free_space
 static int l_get_disk_free_space(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1377 "winapi.l.c"
+  #line 1378 "winapi.l.c"
   ULARGE_INTEGER freebytes, totalbytes;
   if (! GetDiskFreeSpaceEx(root,&freebytes,&totalbytes,NULL)) {
     return push_error(L);
@@ -1767,7 +1768,7 @@ static int l_get_disk_free_space(lua_State *L) {
 // @function get_disk_network_name
 static int l_get_disk_network_name(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1391 "winapi.l.c"
+  #line 1392 "winapi.l.c"
   DWORD size = sizeof(wbuff);
   DWORD res = WNetGetConnectionW(wstring(root),wbuff,&size);
   if (res == NO_ERROR) {
@@ -1802,7 +1803,7 @@ static int l_watch_for_file_changes(lua_State *L) {
   int how = luaL_checkinteger(L,2);
   int subdirs = lua_toboolean(L,3);
   int callback = 4;
-  #line 1421 "winapi.l.c"
+  #line 1422 "winapi.l.c"
   FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
   lcb_callback(fc,L,callback);
   fc->how = how;
@@ -1824,7 +1825,7 @@ static int l_watch_for_file_changes(lua_State *L) {
 
 /// Class representing Windows registry keys.
 // @type Regkey
-#line 1445 "winapi.l.c"
+#line 1446 "winapi.l.c"
 
 typedef struct {
   HKEY key;
@@ -1852,7 +1853,7 @@ static int push_new_Regkey(lua_State *L,HKEY k) {
 
 
 static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
-    #line 1446 "winapi.l.c"
+    #line 1447 "winapi.l.c"
     this->key = k;
   }
 
@@ -1864,7 +1865,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_checklstring(L,2,NULL);
     const char *val = luaL_checklstring(L,3,NULL);
-    #line 1454 "winapi.l.c"
+    #line 1455 "winapi.l.c"
     return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) == ERROR_SUCCESS);
   }
 
@@ -1876,7 +1877,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   static int l_Regkey_get_value(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_optlstring(L,2,"",NULL);
-    #line 1463 "winapi.l.c"
+    #line 1464 "winapi.l.c"
     DWORD type,size = sizeof(wbuff);
     if (RegQueryValueExW(this->key,wstring(name),0,&type,(void *)wbuff,&size) != ERROR_SUCCESS) {
       return push_error(L);
@@ -1898,7 +1899,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function get_keys
   static int l_Regkey_get_keys(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1483 "winapi.l.c"
+    #line 1484 "winapi.l.c"
     int i = 0;
     LONG res;
     DWORD size;
@@ -1922,7 +1923,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function close
   static int l_Regkey_close(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1505 "winapi.l.c"
+    #line 1506 "winapi.l.c"
     RegCloseKey(this->key);
     this->key = NULL;
     return 0;
@@ -1930,13 +1931,13 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
 
   static int l_Regkey___gc(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1511 "winapi.l.c"
+    #line 1512 "winapi.l.c"
     if (this->key != NULL)
       RegCloseKey(this->key);
     return 0;
   }
 
-#line 1516 "winapi.l.c"
+#line 1517 "winapi.l.c"
 
 static const struct luaL_reg Regkey_methods [] = {
      {"set_value",l_Regkey_set_value},
@@ -1956,21 +1957,21 @@ static void Regkey_register (lua_State *L) {
 }
 
 
-#line 1518 "winapi.l.c"
+#line 1519 "winapi.l.c"
 
 /// Registry Functions.
 // @section Registry
 
 /// Open a registry key.
 // @param path the full registry key
-// e.g [[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]
+// e.g `[[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]`
 // @param writeable true if you want to set values
 // @return a Regkey object
 // @function open_reg_key
 static int l_open_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
   int writeable = lua_toboolean(L,2);
-  #line 1528 "winapi.l.c"
+  #line 1529 "winapi.l.c"
   HKEY hKey;
   DWORD access;
   char kbuff[1024];
@@ -1992,7 +1993,7 @@ static int l_open_reg_key(lua_State *L) {
 // @function create_reg_key
 static int l_create_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
-  #line 1548 "winapi.l.c"
+  #line 1549 "winapi.l.c"
   char kbuff[1024];
   HKEY hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
@@ -2005,11 +2006,11 @@ static int l_create_reg_key(lua_State *L) {
   }
 }
 
-#line 1631 "winapi.l.c"
+#line 1632 "winapi.l.c"
 static const char *lua_code_block = ""\
   "function winapi.execute(cmd,unicode)\n"\
   "  local comspec = os.getenv('COMSPEC')\n"\
-  "  if not unicode then\n"\
+  "  if unicode ~= 'unicode' then\n"\
   "    cmd = comspec ..' /c '..cmd\n"\
   "    local P,f = winapi.spawn_process(cmd)\n"\
   "    if not P then return nil,f end\n"\
@@ -2067,12 +2068,12 @@ static const char *lua_code_block = ""\
   "end\n"\
   "function winapi.make_dir(dir) return exec_cmd('mkdir',dir) end\n"\
   "function winapi.remove_dir(dir,tree) return exec_cmd('rmdir '.. (tree and '/S'),dir) end\n"\
-  "function winapi.delete(file) return exec_cmd('del',file) end\n"\
+  "function winapi.delete_file_or_dir(file) return exec_cmd('del',file) end\n"\
   "function winapi.get_files(mask,subdirs,attrib)\n"\
   "    local flags = '/B '\n"\
   "    if subdirs then flags = flags..' /S' end\n"\
   "    if attrib then flags = flags..' /A:'..attrib end\n"\
-  "    local ret, text = winapi.execute('dir '..flags..' \"'..mask..'\"',true)\n"\
+  "    local ret, text = winapi.execute('dir '..flags..' \"'..mask..'\"','unicode')\n"\
   "    if ret ~= 0 then return nil,text end\n"\
   "    return text:gmatch('[^\\r\\n]+')\n"\
   "end\n"\
@@ -2084,7 +2085,7 @@ static void load_lua_code (lua_State *L) {
 
 
 
-#line 1634 "winapi.l.c"
+#line 1635 "winapi.l.c"
 
 
 /*** Constants.
@@ -2092,6 +2093,7 @@ The following constants are available:
 
  * CP_ACP, (valid values for encoding)
  * CP_UTF8,
+ * CP_UTF16,
  * SW_HIDE, (Window operations for Window.show)
  * SW_MAXIMIZE,
  * SW_MINIMIZE,
@@ -2133,17 +2135,17 @@ The following constants are available:
  * FILE\_ACTION\_RENAMED\_NEW\_NAME
 
  @section constants
- */#line 1680 "winapi.l.c"
+ */#line 1682 "winapi.l.c"
 
 
- #line 1682 "winapi.l.c"
+ #line 1684 "winapi.l.c"
 
  /// useful Windows API constants
  // @table constants
 
 #define CP_UTF16 -1
 
-#line 1730 "winapi.l.c"
+#line 1732 "winapi.l.c"
 static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,CP_ACP); lua_setfield(L,-2,"CP_ACP");
  lua_pushinteger(L,CP_UTF8); lua_setfield(L,-2,"CP_UTF8");
@@ -2189,7 +2191,7 @@ static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,FILE_ACTION_RENAMED_NEW_NAME); lua_setfield(L,-2,"FILE_ACTION_RENAMED_NEW_NAME");
 }
 
-#line 1732 "winapi.l.c"
+#line 1734 "winapi.l.c"
 static const luaL_reg winapi_funs[] = {
        {"set_encoding",l_set_encoding},
    {"get_encoding",l_get_encoding},

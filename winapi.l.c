@@ -90,7 +90,7 @@ def encode(Int e_in, Int e_out, Str text) {
   return 1;
 }
 
-/// expand unicode escapes in a string.
+/// expand # unicode escapes in a string.
 // @param text ASCII text with #XXXX, where XXXX is four hex digits. ## means # itself.
 // @return text as UTF-8
 // @function utf8_expand
@@ -171,7 +171,7 @@ class Window {
     return 0;
   }
 
-  /// Change the visibility, state etc
+  /// change the visibility, state etc
   // @param flags one of `SW_SHOW`, `SW_MAXIMIZE`, etc
   // @function show
   def show(Int flags = SW_SHOW) {
@@ -348,7 +348,7 @@ def find_window(StrNil cname, StrNil wname) {
 // @return a window object.
 // @function find_window_match
 
-/// currently foreground window.
+/// current foreground window.
 // @return a window object
 // @function get_foreground_window
 def get_foreground_window() {
@@ -357,7 +357,7 @@ def get_foreground_window() {
 
 /// the desktop window.
 // @return a window object
-// @usage winapi.desktop_window():get_bounds()
+// @usage winapi.get_desktop_window():get_bounds()
 // @function get_desktop_window
 def get_desktop_window() {
   return push_new_Window(L, GetDesktopWindow());
@@ -546,7 +546,7 @@ def shell_exec(StrNil verb, Str file, StrNil parms, StrNil dir, Int show=SW_SHOW
   return push_bool(L, res);
 }
 
-/// Copy text onto the clipboard.
+/// copy text onto the clipboard.
 // @param text the text
 // @function set_clipboard
 def set_clipboard(Str text) {
@@ -569,7 +569,7 @@ def set_clipboard(Str text) {
   return 0;
 }
 
-/// Get the text on the clipboard.
+/// get the text on the clipboard.
 // @return the text
 // @function get_clipboard
 def get_clipboard() {
@@ -752,21 +752,21 @@ class Process {
 /// Working with processes.
 // @section Processes
 
-/// Create a process object from the id.
+/// create a process object from the id.
 // @param pid the process id
 // @function Process
 def Process(Int pid) {
   return push_new_Process(L,pid,NULL);
 }
 
-/// Process id of current process.
+/// process id of current process.
 // @function get_current_pid
 def get_current_pid() {
   lua_pushinteger(L,GetCurrentProcessId());
   return 1;
 }
 
-/// Process object of the current process.
+/// process object of the current process.
 // @function get_current_process
 def get_current_process() {
   return push_new_Process(L,0,GetCurrentProcess());
@@ -794,7 +794,7 @@ def get_processes() {
   return 1;
 }
 
-/// Wait for a group of processes
+/// wait for a group of processes
 // @param processes an array of process objects
 // @param all wait for all processes to finish (default false)
 // @param timeout wait upto this time in msec (default infinite)
@@ -1102,12 +1102,12 @@ def spawn_process(Str program, StrNil dir) {
   }
 }
 
-/// Execute a system command.
-// This is like os.execute(), except that it works without ugly
+/// execute a system command.
+// This is like `os.execute()`, except that it works without ugly
 // console flashing in Windows GUI applications. It additionally
 // returns all text read from stdout and stderr.
 // @param cmd a shell command (may include redirection, etc)
-// @param unicode if true force built-in commands to output in unicode;
+// @param unicode if 'unicode' force built-in commands to output in unicode;
 // in this case the result is always UTF-8
 // @return return code
 // @return program output
@@ -1185,7 +1185,7 @@ static void pipe_server_thread(PipeServerParms *parms) {
 /// Dealing with named pipes.
 // @section Pipes
 
-/// Open a pipe for reading and writing.
+/// open a pipe for reading and writing.
 // @param pipename the pipename (default is "\\\\.\\pipe\\luawinapi")
 // @function open_pipe
 def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
@@ -1205,7 +1205,7 @@ def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
   }
 }
 
-/// Create a named pipe server.
+/// create a named pipe server.
 // This goes into a background loop, and accepts client connections.
 // For each new connection, the callback will be called with a File
 // object for reading and writing to the client.
@@ -1304,7 +1304,7 @@ def short_path(Str path) {
 
 /// delete a file or directory.
 // @param file may be a wildcard
-// @function delete
+// @function delete_file_or_dir
 
 /// make a directory.
 // Will make necessary subpaths if command extensions are enabled.
@@ -1316,6 +1316,7 @@ def short_path(Str path) {
 // @function remove_dir
 
 /// iterator over directory contents.
+// @usage for f in winapi.get_files 'dir\\*.txt' do print(f) end
 // @param mask a file mask like "*.txt"
 // @param subdirs iterate over subdirectories (default no)
 // @param attrib iterate over items with given attribute (as in dir /A:)
@@ -1520,7 +1521,7 @@ class Regkey {
 
 /// Open a registry key.
 // @param path the full registry key
-// e.g [[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]
+// e.g `[[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]`
 // @param writeable true if you want to set values
 // @return a Regkey object
 // @function open_reg_key
@@ -1560,7 +1561,7 @@ def create_reg_key (Str path) {
 lua {
 function winapi.execute(cmd,unicode)
   local comspec = os.getenv('COMSPEC')
-  if not unicode then
+  if unicode ~= 'unicode' then
     cmd = comspec ..' /c '..cmd
     local P,f = winapi.spawn_process(cmd)
     if not P then return nil,f end
@@ -1618,12 +1619,12 @@ local function exec_cmd (cmd,arg)
 end
 function winapi.make_dir(dir) return exec_cmd('mkdir',dir) end
 function winapi.remove_dir(dir,tree) return exec_cmd('rmdir '.. (tree and '/S'),dir) end
-function winapi.delete(file) return exec_cmd('del',file) end
+function winapi.delete_file_or_dir(file) return exec_cmd('del',file) end
 function winapi.get_files(mask,subdirs,attrib)
     local flags = '/B '
     if subdirs then flags = flags..' /S' end
     if attrib then flags = flags..' /A:'..attrib end
-    local ret, text = winapi.execute('dir '..flags..' "'..mask..'"',true)
+    local ret, text = winapi.execute('dir '..flags..' "'..mask..'"','unicode')
     if ret ~= 0 then return nil,text end
     return text:gmatch('[^\r\n]+')
 end
@@ -1636,6 +1637,7 @@ The following constants are available:
 
  * CP_ACP, (valid values for encoding)
  * CP_UTF8,
+ * CP_UTF16,
  * SW_HIDE, (Window operations for Window.show)
  * SW_MAXIMIZE,
  * SW_MINIMIZE,
