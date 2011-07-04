@@ -91,7 +91,7 @@ def encode(Int e_in, Int e_out, Str text) {
 }
 
 /// expand unicode escapes in a string.
-// @param text ASCII text with %uXXXX, where XXXX is four hex digits. %% means % itself.
+// @param text ASCII text with #XXXX, where XXXX is four hex digits. ## means # itself.
 // @return text as UTF-8
 // @function utf8_expand
 def utf8_expand(Str text) {
@@ -102,19 +102,19 @@ def utf8_expand(Str text) {
     return push_error_msg(L,"string too big");
   }
   while (i <= len) {
-    if (text[i] == '%') {
+    if (text[i] == '#') {
       ++i;
-      if (text[i] == '%') {
-        wch = '%';
+      if (text[i] == '#') {
+        wch = '#';
       } else
-      if (text[i] == 'u' && len-i > 4) {
+      if (len-i >= 4) {
         char hexnum[5];
-        strncpy(hexnum,text+i+1,4);
+        strncpy(hexnum,text+i,4);
         hexnum[4] = '\0';
         wch = strtol(hexnum,NULL,16);
-        i += 4;
+        i += 3;
       } else {
-        return push_error_msg(L,"bad % escape");
+        return push_error_msg(L,"bad # escape");
       }
     } else {
       wch = (WCHAR)text[i];
