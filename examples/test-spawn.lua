@@ -1,5 +1,5 @@
 require 'winapi'
-P,W = winapi.spawn 'lua test-timer.lua'
+P,W = winapi.spawn_process 'lua test-timer.lua'
 stuff = W:read()
 k = 1
 while stuff do

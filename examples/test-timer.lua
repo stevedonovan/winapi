@@ -1,11 +1,11 @@
 require 'winapi'
 io.stdout:setvbuf 'no'
 local t1,t2
-t1 = winapi.timer(500,function()
+t1 = winapi.make_timer(500,function()
   print 'gotcha'
 end)
 local k = 1
-t2 = winapi.timer(400,function()
+t2 = winapi.make_timer(400,function()
   print (t1)
   k = k + 1
   if k > 5 then
@@ -14,7 +14,7 @@ t2 = winapi.timer(400,function()
     return true -- and we will end now
    end
 end)
-winapi.timer(1000,function()
+winapi.make_timer(1000,function()
   print 'doo'
   if not t2 then os.exit(0) end -- we all finish
 end)

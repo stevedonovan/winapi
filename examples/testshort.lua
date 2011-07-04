@@ -5,7 +5,7 @@ local UTF8 = winapi.CP_UTF8
 
 winapi.set_encoding(UTF8)
 
-local short = winapi.short_path_name
+local short = winapi.short_path
 local name = short 'ελληνική.txt'
 --os.remove(name)
 print(name)

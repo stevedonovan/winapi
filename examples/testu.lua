@@ -1,6 +1,5 @@
 require 'winapi'
-local U = winapi.uexpand
-local encode = winapi.encode
+local U = winapi.utf8_expand
 local UTF8 = winapi.CP_UTF8
 
 winapi.set_encoding(UTF8)

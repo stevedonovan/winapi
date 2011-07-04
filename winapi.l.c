@@ -93,8 +93,8 @@ def encode(Int e_in, Int e_out, Str text) {
 /// expand unicode escapes in a string.
 // @param text ASCII text with %uXXXX, where XXXX is four hex digits. %% means % itself.
 // @return text as UTF-8
-// @function uexpand
-def uexpand(Str text) {
+// @function utf8_expand
+def utf8_expand(Str text) {
   int len = strlen(text), i = 0, enc = get_encoding();
   WCHAR wch;
   LPWSTR P = wbuff;
@@ -151,8 +151,8 @@ class Window {
   }
 
   /// the handle of this window.
-  // @function handle
-  def handle() {
+  // @function get_handle
+  def get_handle() {
     lua_pushnumber(L,(DWORD_PTR)this->hwnd);
     return 1;
   }
@@ -327,11 +327,11 @@ def find_window(StrNil cname, StrNil wname) {
 
 /// makes a function that matches against window text
 // @param text
-// @function match_name
+// @function make_name_matcher
 
 /// makes a function that matches against window class name
 // @param text
-// @function match_class
+// @function make_class_matcher
 
 /// find a window using a condition function.
 // @param match will return true when its argument is the desired window
@@ -350,16 +350,16 @@ def find_window(StrNil cname, StrNil wname) {
 
 /// currently foreground window.
 // @return a window object
-// @function foreground_window
-def foreground_window() {
+// @function get_foreground_window
+def get_foreground_window() {
   return push_new_Window(L, GetForegroundWindow());
 }
 
 /// the desktop window.
 // @return a window object
 // @usage winapi.desktop_window():get_bounds()
-// @function desktop_window
-def desktop_window() {
+// @function get_desktop_window
+def get_desktop_window() {
   return push_new_Window(L, GetDesktopWindow());
 }
 
@@ -400,8 +400,8 @@ static INPUT *add_input(INPUT *pi, WORD vkey, BOOL up) {
 // @param text either a key (like winapi.VK_SHIFT) or a string
 // @return number of keys sent, or nil if an error
 // @return any error string
-// @function send_input
-def send_input () {
+// @function send_to_window
+def send_to_window () {
   const char *text;
   int vkey, len = MAX_KEYS;
   UINT res;
@@ -639,8 +639,8 @@ class Process {
   /// get the working size of the process.
   // @return minimum working set size
   // @return maximum working set size.
-  // @function working_size
-  def working_size() {
+  // @function get_working_size
+  def get_working_size() {
     SIZE_T minsize, maxsize;
     GetProcessWorkingSetSize(this->hProcess,&minsize,&maxsize);
     lua_pushnumber(L,minsize/1024);
@@ -650,8 +650,8 @@ class Process {
 
   /// get the start time of this process.
   // @return a table in the same format as os.time() and os.date() expects.
-  // @function start_time
-  def start_time() {
+  // @function get_start_time
+  def get_start_time() {
     FILETIME create,exit,kernel,user,local;
     SYSTEMTIME time;
     GetProcessTimes(this->hProcess,&create,&exit,&kernel,&user);
@@ -681,8 +681,8 @@ class Process {
   /// elapsed run time of this process.
   // @return user time in msec
   // @return system time in msec
-  // @function run_times
-  def run_times() {
+  // @function get_run_times
+  def get_run_times() {
     FILETIME create,exit,kernel,user;
     GetProcessTimes(this->hProcess,&create,&exit,&kernel,&user);
     lua_pushnumber(L,fileTimeToMillisec(&user));
@@ -726,8 +726,8 @@ class Process {
   /// exit code of this process.
   // (Only makes sense if the process has in fact finished.)
   // @return exit code
-  // @function exit_code
-  def exit_code() {
+  // @function get_exit_code
+  def get_exit_code() {
     DWORD code;
     GetExitCodeProcess(this->hProcess, &code);
     lua_pushinteger(L,code);
@@ -754,21 +754,21 @@ class Process {
 
 /// Create a process object from the id.
 // @param pid the process id
-// @function process
-def process(Int pid) {
+// @function Process
+def Process(Int pid) {
   return push_new_Process(L,pid,NULL);
 }
 
 /// Process id of current process.
-// @function current_pid
-def current_pid() {
+// @function get_current_pid
+def get_current_pid() {
   lua_pushinteger(L,GetCurrentProcessId());
   return 1;
 }
 
 /// Process object of the current process.
-// @function current_process
-def current_process() {
+// @function get_current_process
+def get_current_process() {
   return push_new_Process(L,0,GetCurrentProcess());
 }
 
@@ -1041,8 +1041,8 @@ def setenv(Str name, Str value) {
 // @return a process object
 // @return a File object
 // @see File, Process
-// @function spawn
-def spawn(Str program, StrNil dir) {
+// @function spawn_process
+def spawn_process(Str program, StrNil dir) {
   WCHAR wdir [MAX_WPATH];
   SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, 0};
   SECURITY_DESCRIPTOR sd;
@@ -1107,15 +1107,11 @@ def spawn(Str program, StrNil dir) {
 // console flashing in Windows GUI applications. It additionally
 // returns all text read from stdout and stderr.
 // @param cmd a shell command (may include redirection, etc)
-// @return status code
+// @param unicode if true force built-in commands to output in unicode;
+// in this case the result is always UTF-8
+// @return return code
 // @return program output
 // @function execute
-
-/// execute a system command in Unicode mode.
-// @param cmd a built-in command like dir
-// @return return code
-// @return text as UTF-8
-// @function execute_unicode
 
 // Timer support //////////
 typedef struct {
@@ -1139,8 +1135,8 @@ static void timer_thread(TimerData *data) { // background timer thread
 // @param msec interval in millisec
 // @param callback a function to be called at each interval.
 // @return a thread object.
-// @function timer
-def timer(Int msec, Value callback) {
+// @function make_timer
+def make_timer(Int msec, Value callback) {
   TimerData *data = (TimerData *)malloc(sizeof(TimerData));
   data->msec = msec;
   lcb_callback(data,L,callback);
@@ -1217,8 +1213,8 @@ def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
 // @param pipename Must be of the form \\.\pipe\name, defaults to
 // \\.\pipe\luawinapi.
 // @return a thread object.
-// @function server
-def server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
+// @function make_pipe_server
+def make_pipe_server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
   PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
   lcb_callback(psp,L,callback);
   psp->pipename = pipename;
@@ -1274,8 +1270,8 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
 // files with unicode names.
 // @param path multibyte encoded file path
 // @return ASCII 8.3 format file path
-// @function short_path_name
-def short_path_name(Str path) {
+// @function short_path
+def short_path(Str path) {
   WCHAR wpath[MAX_WPATH];
   HANDLE hFile;
   int res;
@@ -1304,7 +1300,7 @@ def short_path_name(Str path) {
 /// get a temporary filename.
 // (Don't use os.tmpname)
 // @return full path within temporary files directory.
-// @function tmpname
+// @function temp_name
 
 /// delete a file or directory.
 // @param file may be a wildcard
@@ -1312,12 +1308,12 @@ def short_path_name(Str path) {
 
 /// make a directory.
 // Will make necessary subpaths if command extensions are enabled.
-// @function mkdir
+// @function make_dir
 
 /// remove a directory.
 // @param dir the directory
 // @param tree if true, clean out the directory tree
-// @function rmdir
+// @function remove_dir
 
 /// iterator over directory contents.
 // @param mask a file mask like "*.txt"
@@ -1442,8 +1438,8 @@ def watch_for_file_changes (Str dir, Int how, Boolean subdirs, Value callback) {
 }
 
 /// Class representing Windows registry keys.
-// @type regkey
-class regkey {
+// @type Regkey
+class Regkey {
   HKEY key;
 
   constructor (HKEY k) {
@@ -1526,9 +1522,9 @@ class regkey {
 // @param path the full registry key
 // e.g [[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]
 // @param writeable true if you want to set values
-// @return a regkey object
-// @function open_key
-def open_key(Str path, Boolean writeable) {
+// @return a Regkey object
+// @function open_reg_key
+def open_reg_key(Str path, Boolean writeable) {
   HKEY hKey;
   DWORD access;
   char kbuff[1024];
@@ -1538,7 +1534,7 @@ def open_key(Str path, Boolean writeable) {
   }
   access = writeable ? KEY_ALL_ACCESS : (KEY_READ | KEY_ENUMERATE_SUB_KEYS);
   if (RegOpenKeyExW(hKey,wstring(kbuff),0,access,&hKey) == ERROR_SUCCESS) {
-    return push_new_regkey(L,hKey);
+    return push_new_Regkey(L,hKey);
   } else {
     return push_error(L);
   }
@@ -1547,37 +1543,53 @@ def open_key(Str path, Boolean writeable) {
 /// Create a registry key.
 // @param path the full registry key
 // @return a regkey object
-// @function create_key
-def create_key (Str path) {
+// @function create_reg_key
+def create_reg_key (Str path) {
   char kbuff[1024];
   HKEY hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
     return push_error_msg(L,"unrecognized registry key");
   }
   if (RegCreateKeyExW(hKey,wstring(kbuff),0,NULL,0,KEY_ALL_ACCESS,NULL,&hKey,NULL)) {
-    return push_new_regkey(L,hKey);
+    return push_new_Regkey(L,hKey);
   } else {
     return push_error(L);
   }
 }
 
 lua {
-function winapi.execute(cmd)
-   cmd = os.getenv('COMSPEC')..' /c '..cmd
-   local P,f = winapi.spawn(cmd)
-   if not P then return nil,f end
-   local txt = f:read()
-   local out = {}
-   while txt do
-     table.insert(out,txt)
-     txt = f:read()
-   end
-   return P:wait():exit_code(),table.concat(out,'')
+function winapi.execute(cmd,unicode)
+  local comspec = os.getenv('COMSPEC')
+  if not unicode then
+    cmd = comspec ..' /c '..cmd
+    local P,f = winapi.spawn_process(cmd)
+    if not P then return nil,f end
+    local txt = f:read()
+    local out = {}
+    while txt do
+      table.insert(out,txt)
+      txt = f:read()
+    end
+    return P:wait():get_exit_code(),table.concat(out,'')
+  else
+    local tmpfile,res,f,out = winapi.temp_name()
+    cmd = comspec..' /u /c '..cmd..' > "'..tmpfile..'"'
+    local P,err = winapi.spawn_process(cmd)
+    if not P then return nil,err end
+    res = P:wait():get_exit_code()
+    f = io.open(tmpfile)
+    out = f:read '*a'
+    f:close()
+    os.remove(tmpfile)
+    out, err = winapi.encode(winapi.CP_UTF16,winapi.CP_UTF8,out)
+    if err then return nil,err end
+    return res,out
+  end
 end
-function winapi.match_name(text)
+function winapi.make_name_matcher(text)
   return function(w) return tostring(w):match(text) end
 end
-function winapi.match_class(classname)
+function winapi.make_class_matcher(classname)
   return function(w) return w:get_class_name():match(classname) end
 end
 function winapi.find_window_ex(match)
@@ -1595,38 +1607,23 @@ function winapi.find_all_windows(match)
   return res
 end
 function winapi.find_window_match(text)
-  return winapi.find_window_ex(winapi.match_name(text))
+  return winapi.find_window_ex(winapi.make_name_matcher(text))
 end
-function winapi.tmpname () return os.getenv('TEMP')..os.tmpname() end
-function winapi.execute_unicode(cmd)
-   local tmpfile = winapi.tmpname()
-   cmd = os.getenv('COMSPEC')..' /u /c '..cmd..' > "'..tmpfile..'"'
-   local P,err = winapi.spawn(cmd)
-   if not P then return nil,err end
-   local res,f,out
-   res = P:wait():exit_code()
-   f = io.open(tmpfile)
-   out = f:read '*a'
-   f:close()
-   os.remove(tmpfile)
-   out, err = winapi.encode(-1,winapi.CP_UTF8,out)
-   if err then return nil,err end
-   return res,out
-end
+function winapi.temp_name () return os.getenv('TEMP')..os.tmpname() end
 local function exec_cmd (cmd,arg)
     local res,err = winapi.execute(cmd..' "'..arg..'"')
     if res == 0 then return true
     else return nil,err
     end
 end
-function winapi.mkdir(dir) return exec_cmd('mkdir',dir) end
-function winapi.rmdir(dir,tree) return exec_cmd('rmdir '.. (tree and '/S'),dir) end
+function winapi.make_dir(dir) return exec_cmd('mkdir',dir) end
+function winapi.remove_dir(dir,tree) return exec_cmd('rmdir '.. (tree and '/S'),dir) end
 function winapi.delete(file) return exec_cmd('del',file) end
 function winapi.get_files(mask,subdirs,attrib)
     local flags = '/B '
     if subdirs then flags = flags..' /S' end
     if attrib then flags = flags..' /A:'..attrib end
-    local ret, text = winapi.execute_unicode('dir '..flags..' "'..mask..'"')
+    local ret, text = winapi.execute('dir '..flags..' "'..mask..'"',true)
     if ret ~= 0 then return nil,text end
     return text:gmatch('[^\r\n]+')
 end
