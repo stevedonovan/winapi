@@ -1690,17 +1690,17 @@ static int l_short_path(lua_State *L) {
 // @function remove_dir
 
 /// iterator over directory contents.
-// @usage for f in winapi.get_files 'dir\\*.txt' do print(f) end
+// @usage for f in winapi.files 'dir\\*.txt' do print(f) end
 // @param mask a file mask like "*.txt"
 // @param subdirs iterate over subdirectories (default no)
 // @param attrib iterate over items with given attribute (as in dir /A:)
-// @function get_files
+// @function files
 
 /// iterate over subdirectories
 // @param file mask like "mydirs\\t*"
 // @param subdirs iterate over subdirectories (default no)
 // @see get_files
-// @function get_dirs
+// @function dirs
 
 /// get all the drives on this computer.
 // @return a table of drive names
@@ -2069,7 +2069,7 @@ static const char *lua_code_block = ""\
   "function winapi.make_dir(dir) return exec_cmd('mkdir',dir) end\n"\
   "function winapi.remove_dir(dir,tree) return exec_cmd('rmdir '.. (tree and '/S'),dir) end\n"\
   "function winapi.delete_file_or_dir(file) return exec_cmd('del',file) end\n"\
-  "function winapi.get_files(mask,subdirs,attrib)\n"\
+  "function winapi.files(mask,subdirs,attrib)\n"\
   "    local flags = '/B '\n"\
   "    if subdirs then flags = flags..' /S' end\n"\
   "    if attrib then flags = flags..' /A:'..attrib end\n"\
@@ -2077,7 +2077,7 @@ static const char *lua_code_block = ""\
   "    if ret ~= 0 then return nil,text end\n"\
   "    return text:gmatch('[^\\r\\n]+')\n"\
   "end\n"\
-  "function winapi.get_dirs(mask,subdirs) return winapi.get_files(mask,subdirs,'D') end\n"\
+  "function winapi.dirs(mask,subdirs) return winapi.files(mask,subdirs,'D') end\n"\
 ;
 static void load_lua_code (lua_State *L) {
   luaL_dostring(L,lua_code_block);
