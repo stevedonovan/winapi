@@ -1501,11 +1501,21 @@ class Regkey {
   }
 
   /// close this key.
+  // Although this will happen when garbage collection happens, it
+  // is good practice to call this explicitly.
   // @function close
   def close() {
     RegCloseKey(this->key);
     this->key = NULL;
     return 0;
+  }
+
+  /// flush the key.
+  // Considered an expensive function; use it only when you have
+  // to guarantee modification.
+  // @function flush
+  def flush() {
+    return push_bool(L,RegFlushKey(this->key));
   }
 
   def __gc() {

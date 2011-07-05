@@ -1920,30 +1920,43 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   }
 
   /// close this key.
+  // Although this will happen when garbage collection happens, it
+  // is good practice to call this explicitly.
   // @function close
   static int l_Regkey_close(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1506 "winapi.l.c"
+    #line 1508 "winapi.l.c"
     RegCloseKey(this->key);
     this->key = NULL;
     return 0;
   }
 
+  /// flush the key.
+  // Considered an expensive function; use it only when you have
+  // to guarantee modification.
+  // @function flush
+  static int l_Regkey_flush(lua_State *L) {
+    Regkey *this = Regkey_arg(L,1);
+    #line 1518 "winapi.l.c"
+    return push_bool(L,RegFlushKey(this->key));
+  }
+
   static int l_Regkey___gc(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1512 "winapi.l.c"
+    #line 1522 "winapi.l.c"
     if (this->key != NULL)
       RegCloseKey(this->key);
     return 0;
   }
 
-#line 1517 "winapi.l.c"
+#line 1527 "winapi.l.c"
 
 static const struct luaL_reg Regkey_methods [] = {
      {"set_value",l_Regkey_set_value},
    {"get_value",l_Regkey_get_value},
    {"get_keys",l_Regkey_get_keys},
    {"close",l_Regkey_close},
+   {"flush",l_Regkey_flush},
    {"__gc",l_Regkey___gc},
   {NULL, NULL}  /* sentinel */
 };
@@ -1957,7 +1970,7 @@ static void Regkey_register (lua_State *L) {
 }
 
 
-#line 1519 "winapi.l.c"
+#line 1529 "winapi.l.c"
 
 /// Registry Functions.
 // @section Registry
@@ -1971,7 +1984,7 @@ static void Regkey_register (lua_State *L) {
 static int l_open_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
   int writeable = lua_toboolean(L,2);
-  #line 1529 "winapi.l.c"
+  #line 1539 "winapi.l.c"
   HKEY hKey;
   DWORD access;
   char kbuff[1024];
@@ -1993,7 +2006,7 @@ static int l_open_reg_key(lua_State *L) {
 // @function create_reg_key
 static int l_create_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
-  #line 1549 "winapi.l.c"
+  #line 1559 "winapi.l.c"
   char kbuff[1024];
   HKEY hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
@@ -2006,7 +2019,7 @@ static int l_create_reg_key(lua_State *L) {
   }
 }
 
-#line 1632 "winapi.l.c"
+#line 1642 "winapi.l.c"
 static const char *lua_code_block = ""\
   "function winapi.execute(cmd,unicode)\n"\
   "  local comspec = os.getenv('COMSPEC')\n"\
@@ -2085,7 +2098,7 @@ static void load_lua_code (lua_State *L) {
 
 
 
-#line 1635 "winapi.l.c"
+#line 1645 "winapi.l.c"
 
 
 /*** Constants.
@@ -2135,17 +2148,17 @@ The following constants are available:
  * FILE\_ACTION\_RENAMED\_NEW\_NAME
 
  @section constants
- */#line 1682 "winapi.l.c"
+ */#line 1692 "winapi.l.c"
 
 
- #line 1684 "winapi.l.c"
+ #line 1694 "winapi.l.c"
 
  /// useful Windows API constants
  // @table constants
 
 #define CP_UTF16 -1
 
-#line 1732 "winapi.l.c"
+#line 1742 "winapi.l.c"
 static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,CP_ACP); lua_setfield(L,-2,"CP_ACP");
  lua_pushinteger(L,CP_UTF8); lua_setfield(L,-2,"CP_UTF8");
@@ -2191,7 +2204,7 @@ static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,FILE_ACTION_RENAMED_NEW_NAME); lua_setfield(L,-2,"FILE_ACTION_RENAMED_NEW_NAME");
 }
 
-#line 1734 "winapi.l.c"
+#line 1744 "winapi.l.c"
 static const luaL_reg winapi_funs[] = {
        {"set_encoding",l_set_encoding},
    {"get_encoding",l_get_encoding},
