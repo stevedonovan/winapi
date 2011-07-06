@@ -5,7 +5,7 @@ A useful set of Windows API functions.
  * Enumerating processes and querying their program name, memory used, etc.
  * Reading and Writing to the Registry
  * Copying and moving files, and showing drive information.
- * Lauching processes and opening documents.
+ * Launching processes and opening documents.
  * Monitoring filesystem changes.
 
 @author Steve Donovan  (steve.j.donovan@gmail.com)
@@ -350,6 +350,7 @@ def find_window(StrNil cname, StrNil wname) {
 
 /// current foreground window.
 // @return a window object
+// @return <Window>
 // @function get_foreground_window
 def get_foreground_window() {
   return push_new_Window(L, GetForegroundWindow());
@@ -358,6 +359,7 @@ def get_foreground_window() {
 /// the desktop window.
 // @return a window object
 // @usage winapi.get_desktop_window():get_bounds()
+// @return <Window>
 // @function get_desktop_window
 def get_desktop_window() {
   return push_new_Window(L, GetDesktopWindow());
@@ -376,6 +378,8 @@ def enum_windows(Value callback) {
 }
 
 /// route callback dispatch through a message window.
+// You need to do this when using Winapi in a GUI application,
+// since it ensures that Lua callbacks happen in the GUI thread.
 // @function use_gui
 def use_gui() {
   make_message_window();
@@ -754,12 +758,14 @@ class Process {
 
 /// create a process object from the id.
 // @param pid the process id
-// @function Process
-def Process(Int pid) {
+// @return <Process>
+// @function process_from_id
+def process_from_id(Int pid) {
   return push_new_Process(L,pid,NULL);
 }
 
 /// process id of current process.
+// @return integer id
 // @function get_current_pid
 def get_current_pid() {
   lua_pushinteger(L,GetCurrentProcessId());
@@ -767,6 +773,7 @@ def get_current_pid() {
 }
 
 /// process object of the current process.
+// @return <Process>
 // @function get_current_process
 def get_current_process() {
   return push_new_Process(L,0,GetCurrentProcess());
@@ -1038,9 +1045,8 @@ def setenv(Str name, Str value) {
 /// Spawn a process.
 // @param program the command-line (program + parameters)
 // @param dir the working directory for the process (optional)
-// @return a process object
-// @return a File object
-// @see File, Process
+// @return a <Process> object
+// @return a <File> object
 // @function spawn_process
 def spawn_process(Str program, StrNil dir) {
   WCHAR wdir [MAX_WPATH];
@@ -1325,7 +1331,7 @@ def short_path(Str path) {
 /// iterate over subdirectories
 // @param file mask like "mydirs\\t*"
 // @param subdirs iterate over subdirectories (default no)
-// @see get_files
+// @see files
 // @function dirs
 
 /// get all the drives on this computer.
@@ -1533,7 +1539,7 @@ class Regkey {
 // @param path the full registry key
 // e.g `[[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]`
 // @param writeable true if you want to set values
-// @return a Regkey object
+// @return a <Regkey> object
 // @function open_reg_key
 def open_reg_key(Str path, Boolean writeable) {
   HKEY hKey;
@@ -1553,7 +1559,7 @@ def open_reg_key(Str path, Boolean writeable) {
 
 /// Create a registry key.
 // @param path the full registry key
-// @return a regkey object
+// @return a <Regkey> object
 // @function create_reg_key
 def create_reg_key (Str path) {
   char kbuff[1024];
