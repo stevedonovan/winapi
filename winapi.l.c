@@ -317,7 +317,7 @@ class Window {
 /// find a window based on classname and caption
 // @param cname class name (may be nil)
 // @param wname caption (may be nil)
-// @return a window object
+// @return <Window>
 // @function find_window
 def find_window(StrNil cname, StrNil wname) {
   HWND hwnd;
@@ -335,7 +335,7 @@ def find_window(StrNil cname, StrNil wname) {
 
 /// find a window using a condition function.
 // @param match will return true when its argument is the desired window
-// @return window object
+// @return <Window>
 // @function find_window_ex
 
 /// return all windows matching a condition.
@@ -349,7 +349,6 @@ def find_window(StrNil cname, StrNil wname) {
 // @function find_window_match
 
 /// current foreground window.
-// @return a window object
 // @return <Window>
 // @function get_foreground_window
 def get_foreground_window() {
@@ -357,7 +356,6 @@ def get_foreground_window() {
 }
 
 /// the desktop window.
-// @return a window object
 // @usage winapi.get_desktop_window():get_bounds()
 // @return <Window>
 // @function get_desktop_window
