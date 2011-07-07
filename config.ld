@@ -3,7 +3,7 @@ file = "winapi.l.c"
 output = "api"
 title = "Winapi documentation"
 project = "winapi"
-no_summary = true
+-- no_summary = true
 description = [[
 A minimal but useful binding to the Windows API.
 ]]

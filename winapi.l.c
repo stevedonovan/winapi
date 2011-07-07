@@ -317,7 +317,7 @@ class Window {
 /// find a window based on classname and caption
 // @param cname class name (may be nil)
 // @param wname caption (may be nil)
-// @return <Window>
+// @return @{Window}
 // @function find_window
 def find_window(StrNil cname, StrNil wname) {
   HWND hwnd;
@@ -335,7 +335,7 @@ def find_window(StrNil cname, StrNil wname) {
 
 /// find a window using a condition function.
 // @param match will return true when its argument is the desired window
-// @return <Window>
+// @return @{Window}
 // @function find_window_ex
 
 /// return all windows matching a condition.
@@ -349,7 +349,7 @@ def find_window(StrNil cname, StrNil wname) {
 // @function find_window_match
 
 /// current foreground window.
-// @return <Window>
+// @return @{Window}
 // @function get_foreground_window
 def get_foreground_window() {
   return push_new_Window(L, GetForegroundWindow());
@@ -357,7 +357,7 @@ def get_foreground_window() {
 
 /// the desktop window.
 // @usage winapi.get_desktop_window():get_bounds()
-// @return <Window>
+// @return @{Window}
 // @function get_desktop_window
 def get_desktop_window() {
   return push_new_Window(L, GetDesktopWindow());
@@ -447,7 +447,7 @@ def send_to_window () {
 }
 
 /// tile a group of windows.
-// @param parent (can use the desktop)
+// @param parent @{Window} (can use the desktop)
 // @param horiz tile vertically by default
 // @param kids a table of window objects
 // @param bounds a bounds table (left,top,right,bottom) - can be nil
@@ -756,7 +756,7 @@ class Process {
 
 /// create a process object from the id.
 // @param pid the process id
-// @return <Process>
+// @return @{Process}
 // @function process_from_id
 def process_from_id(Int pid) {
   return push_new_Process(L,pid,NULL);
@@ -771,7 +771,7 @@ def get_current_pid() {
 }
 
 /// process object of the current process.
-// @return <Process>
+// @return @{Process}
 // @function get_current_process
 def get_current_process() {
   return push_new_Process(L,0,GetCurrentProcess());
@@ -800,7 +800,7 @@ def get_processes() {
 }
 
 /// wait for a group of processes
-// @param processes an array of process objects
+// @param processes an array of @{Process} objects
 // @param all wait for all processes to finish (default false)
 // @param timeout wait upto this time in msec (default infinite)
 // @function wait_for_processes
@@ -875,8 +875,8 @@ void lcb_free(void *data) {
   release_ref(lcb->L,lcb->callback);
 }
 
-/// Thread object. This is returned by the `read_async` method and the `timer`,
-// `server` and `watch_for_file_changes` functions. Useful to kill a thread
+/// Thread object. This is returned by the @{File.read_async} method and the @{make_timer},
+// @{make_pipe_server} and @{watch_for_file_changes} functions. Useful to kill a thread
 // and free associated resources.
 // @type Thread
 class Thread {
@@ -1005,7 +1005,7 @@ class File {
   /// asynchronous read.
   // @param callback function that will receive each chunk of text
   // as it comes in.
-  // @return a thread object.
+  // @return @{Thread}
   // @function read_async
   def read_async (Value callback) {
     this->callback = make_ref(L,callback);
@@ -1043,8 +1043,8 @@ def setenv(Str name, Str value) {
 /// Spawn a process.
 // @param program the command-line (program + parameters)
 // @param dir the working directory for the process (optional)
-// @return a <Process> object
-// @return a <File> object
+// @return @{Process}
+// @return @{File}
 // @function spawn_process
 def spawn_process(Str program, StrNil dir) {
   WCHAR wdir [MAX_WPATH];
@@ -1138,7 +1138,7 @@ static void timer_thread(TimerData *data) { // background timer thread
 // The callback can return true if it wishes to cancel the timer.
 // @param msec interval in millisec
 // @param callback a function to be called at each interval.
-// @return a thread object.
+// @return @{Thread}
 // @function make_timer
 def make_timer(Int msec, Value callback) {
   TimerData *data = (TimerData *)malloc(sizeof(TimerData));
@@ -1216,7 +1216,7 @@ def open_pipe(Str pipename = "\\\\.\\pipe\\luawinapi") {
 // @param callback a function that will be passed a File object
 // @param pipename Must be of the form \\.\pipe\name, defaults to
 // \\.\pipe\luawinapi.
-// @return a thread object.
+// @return @{Thread}.
 // @function make_pipe_server
 def make_pipe_server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
   PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
@@ -1537,7 +1537,7 @@ class Regkey {
 // @param path the full registry key
 // e.g `[[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]`
 // @param writeable true if you want to set values
-// @return a <Regkey> object
+// @return @{Regkey}
 // @function open_reg_key
 def open_reg_key(Str path, Boolean writeable) {
   HKEY hKey;
@@ -1557,7 +1557,7 @@ def open_reg_key(Str path, Boolean writeable) {
 
 /// Create a registry key.
 // @param path the full registry key
-// @return a <Regkey> object
+// @return @{Regkey}
 // @function create_reg_key
 def create_reg_key (Str path) {
   char kbuff[1024];
