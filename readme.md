@@ -1,14 +1,14 @@
 # winapi A useful Windows API subset for Lua
 
-This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`.  Normally `winapi` works with the current Windows code page, but can be told to use UTF-8 with `set_encoding`; interally string operations are in Unicode.
+This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`.  Normally `winapi` works with the current Windows code page, but can be told to use UTF-8 with @{set_encoding}; interally string operations are in Unicode.
 
 ## Creating and working with Processes
 
-An  irritating fact is that Lua GUI applications (such as IUP or wxLua) cannot use `os.execute` without the infamous 'flashing black box' of console creation. And `io.popen` may in fact not work at all.
+An  irritating fact is that Lua GUI applications (such as IUP or wxLua) cannot use @{os.execute} without the infamous 'flashing black box' of console creation. And @{io.popen} may in fact not work at all.
 
-`execute` provides a _quiet_ method to call a shell command.  It returns the result code (like `os.execute`) but also any text generated from the command. So for many common applications it will do as a `io.popen` replacement as well. This function is blocking, but `winapi` provides more general ways of launching processes in the background and even capturing their output asynchronously. This will be discussed later with `spawn`.
+@{execute} provides a _quiet_ method to call a shell command.  It returns the result code (like @{os.execute}) but also any text generated from the command. So for many common applications it will do as a @{io.popen} replacement as well. This function is blocking, but `winapi` provides more general ways of launching processes in the background and even capturing their output asynchronously. This will be discussed later with @{spawn_process}.
 
-Apart from `execute`, `shell_exec` is the Swiss-Army-Knife of Windows process creation. The first parameter is the 'action' or 'verb' to apply to the path; common actions are 'open', 'edit' and 'print'. Notice that these are the actions defined in Explorer (hence the word 'shell'). So to open a document in Word (or whatever application is registered for this extension):
+Apart from @{execute}, @{shell_exec} is the Swiss-Army-Knife of Windows process creation. The first parameter is the 'action' or 'verb' to apply to the path; common actions are 'open', 'edit' and 'print'. Notice that these are the actions defined in Explorer (hence the word 'shell'). So to open a document in Word (or whatever application is registered for this extension):
 
     winapi.shell_exec('open','myold.doc')
 
@@ -24,9 +24,9 @@ The fourth parameter is the working directory for the process, and the fifth ind
 
     winapi.shell_exec(nil,'notepad','wina.lua',nil,winapi.SW_MINIMIZE)
 
-For fine control over console programs, use `winapi.spawn` - you pass it the command-line, and receive two values; a process object and a file object. You monitor the process with the first, and can read from or write to the second.
+For fine control over console programs, use @{spawn_process} - you pass it the command-line, and receive two values; a process object and a file object. You monitor the process with the first, and can read from or write to the second.
 
-    > proc,file = winapi.spawn 'cmd /c dir /b'
+    > proc,file = winapi.spawn_process 'cmd /c dir /b'
     > = file:read()
     bonzo.lc
     cexport.lua
@@ -39,21 +39,21 @@ For fine control over console programs, use `winapi.spawn` - you pass it the com
 
 If the command is invalid, then you will get an error message instead:
 
-    > = winapi.spawn 'frodo'
+    > = winapi.spawn_process 'frodo'
     nil     The system cannot find the file specified.
 
-This is what `execute` does under the hood, but doing it explicitly gives you more control.  For instance, the `wait` method of the process object can take an optional time-out parameter; if you wait too long for the process, it will return the process object and the string 'TIMEOUT'.
+This is what @{execute} does under the hood, but doing it explicitly gives you more control.  For instance, the @{Process.wait} method of the process object can take an optional time-out parameter; if you wait too long for the process, it will return the process object and the string 'TIMEOUT'.
 
     local _,status = proc:wait(500)
     if status == 'TIMEOUT' then
       proc:kill()
     end
 
-The file object is unfortunately not a Lua file object, since it is not possible to _portably_ re-use the existing Lua implementation without copying large chunks of `liolib.c` into this library. So `read` grabs what's available, unbuffered. But I feel that it's easy enough for Lua code to parse the result into separate lines, if needed.
+The file object is unfortunately not a Lua file object, since it is not possible to _portably_ re-use the existing Lua implementation without copying large chunks of `liolib.c` into this library. So @{File.read} grabs what's available, unbuffered. But I feel that it's easy enough for Lua code to parse the result into separate lines, if needed.
 
-Having a `write` method means that, yes, you can capture an interactive process, send it commands and read the result. The caveat is that this process must not buffer standard output. For instance, launch interactive Lua with a command-line like this:
+Having a @{File.write} method means that, yes, you can capture an interactive process, send it commands and read the result. The caveat is that this process must not buffer standard output. For instance, launch interactive Lua with a command-line like this:
 
-    > proc,file = winapi.spawn [[lua -e "io.stdout:setvbuf('no')" -i]]
+    > proc,file = winapi.spawn_process [[lua -e "io.stdout:setvbuf('no')" -i]]
     > = file:read()  -- always read the program banner first!
     Lua 5.1.4  Copyright (C) 1994-2008 Lua.org, PUC-Rio
     >
@@ -68,7 +68,7 @@ Having a `write` method means that, yes, you can capture an interactive process,
 
 Note that reading the result also returns the prompt '>', which isn't so obvious if we're running Lua from within Lua itself. It's clearer when using Python:
 
-    > proc,file = winapi.spawn [[python -i]]
+    > proc,file = winapi.spawn_process [[python -i]]
     > = file:read()
     Python 2.6.2c1 (r262c1:71369, Apr  7 2009, 18:44:00) [MSC v.1500 32 bit (Intel)]
      on win32
@@ -79,7 +79,7 @@ Note that reading the result also returns the prompt '>', which isn't so obvious
     42
     >>>
 
-This kind of interactive process capture is fine for a console application, but `read` is blocking and will freeze any GUI program. For this, you use `read_async` which returns the result through a callback.
+This kind of interactive process capture is fine for a console application, but @{File.read} is blocking and will freeze any GUI program. For this, you use @{File.read_async} which returns the result through a callback.
 
     > file:write '40+2\n'
     > file:read_async(function(s) print('++',s) end)
@@ -95,7 +95,7 @@ The process object can provide more useful information:
     > = proc:run_times()
     0       31
 
-`working_size` gives you a lower and an upper bound on the process memory in kB; `run_times` gives you the time (in milliseconds) spent in the user process and in the kernel. So the time to calculate `40+2` twice is too fast to even register, and it has only spent 31 msec in the system.
+@{Process.get_working_size} gives you a lower and an upper bound on the process memory in kB; @{Process.get_run_times} gives you the time (in milliseconds) spent in the user process and in the kernel. So the time to calculate `40+2` twice is too fast to even register, and it has only spent 31 msec in the system.
 
 It is possible to wait on more than one process at a time. Consider this simple time-wasting script:
 
@@ -106,23 +106,23 @@ It takes me 0.743 seconds to do this, with stock Lua 5.1. But running two such s
     require 'winapi'
     local t = os.clock()
     local P = {}
-    P[1] = winapi.spawn 'lua slow.lua'
-    P[2] = winapi.spawn 'lua slow.lua'
+    P[1] = winapi.spawn_process 'lua slow.lua'
+    P[2] = winapi.spawn_process 'lua slow.lua'
     winapi.wait_for_processes(P,true)
     print(os.clock() - t)
 
-So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long. The second parameter means 'wait for all'; like the `wait` method, it has an optional timeout parameter.
+So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long. The second parameter means 'wait for all'; like the @{Process.wait} method, it has an optional timeout parameter.
 
 ## Working with Windows
 
-The windows object provides methods for querying window properties. For instance, the desktop window fills the whole screen, so to find out the screen dimensions is straightforward:
+The ${Windows} object provides methods for querying window properties. For instance, the desktop window fills the whole screen, so to find out the screen dimensions is straightforward:
 
     > = winapi.desktop_window():get_bounds()
     1600    900
 
-Finding other windows is best done by iterating over all top-level windows and checking them for some desired property; (`find_window` is provided for completeness, but you really have to provide the exact window caption for the second parameter.)
+Finding other windows is best done by iterating over all top-level windows and checking them for some desired property; (@{find_window} is provided for completeness, but you really have to provide the exact window caption for the second parameter.)
 
-`find_all_windows` returns all windows matching some function. For convenience, two useful matchers are provided, `match_name` and `match_class`. Once you have a group of related windows, you can do fun things like tile them:
+@{find_all_windows} returns all windows matching some function. For convenience, two useful matchers are provided, @{make_name_matcher} and @{make_class_matcher}. Once you have a group of related windows, you can do fun things like tile them:
 
     > t = winapi.find_all_windows(winapi.match_name '- SciTE')
     > = #t
@@ -133,7 +133,7 @@ This call needs the parent window (we just use the desktop), whether to tile hor
 
 With tiling and the ability to hide windows with `w:show(winapi.SW_HIDE)` it is entirely possible to write a little 'virtual desktop' application.
 
-`find_window_ex` also uses a matcher function; `find_window_match` is a shortcut for the operation of finding a window by its caption.
+@{find_window_ex} also uses a matcher function; @{find_window_match} is a shortcut for the operation of finding a window by its caption.
 
 Every window has an associated text value. For top-level windows, this is the window caption:
 
@@ -144,7 +144,7 @@ So the equivalent of the old DOS command `title` would here be:
 
     winapi.foreground_window():set_text 'My new title'
 
-Any top-level window will contain child windows. For example, Notepad has a simple structure revealed by `enum_children`:
+Any top-level window will contain child windows. For example, Notepad has a simple structure revealed by @{Window.enum_children}:
 
     > w = winapi.find_window_match 'Notepad'
     > = w
@@ -164,7 +164,7 @@ Windows controls like the 'Edit' control interact with the unverse via messages.
     > = t[1]:send_message(186,0,0)
     6
 
-An entertaining way to automate some programs is to send virtual keystrokes to them. The function `send_input` sends characters to the current foreground window:
+An entertaining way to automate some programs is to send virtual keystrokes to them. The function @{send_to_window} sends characters to the current foreground window:
 
     > winapi.send_input '= 20 + 10\n'
     > = 20 + 10
@@ -192,7 +192,7 @@ When run in SciTE, it successfully puts a little bit of Greek in the title bar.
 
 ## Working with Processes
 
-`current_process` will give you a process object for the current program. It's also possible to get a process object from a program's window:
+@{get_current_process} will give you a @{Process} object for the current program. It's also possible to get a process object from a program's window:
 
     > w = winapi.foreground_window()
     > = w
@@ -203,7 +203,7 @@ When run in SciTE, it successfully puts a little bit of Greek in the title bar.
     > = p:get_process_name(true)
     C:\WINDOWS\system32\cmd.exe
 
-(Note that the `get_process_name` method can optionally give you the full path to the process.)
+(Note that the @{Process.get_process_name} method can optionally give you the full path to the process.)
 
 To get all the current processes:
 
@@ -219,7 +219,7 @@ To get all the current processes:
 
 ## Drive and Directory Operations
 
-There are functions for querying the filesystem: `get_logical_drives()` returns all available drives (in 'D:\\' format) and `get_drive_type()` will tell you whether these drives are fixed, remote, removable, etc. `get_disk_free_space()` will return the space used and the space available in kB as two results.
+There are functions for querying the filesystem: @{get_logical_drives()} returns all available drives (in 'D:\\' format) and @{get_drive_type()} will tell you whether these drives are fixed, remote, removable, etc. @{get_disk_free_space()} will return the space used and the space available in kB as two results.
 
     require 'winapi'
 
@@ -269,7 +269,7 @@ A useful operation is watching directories for changes. You specify the director
 
 Using a callback means that you can watch multiple directories and still respond to timers, etc.
 
- Finally, `copy_file` and 'move_file` are indispensible operations which are surprisingly tricky to write correctly in pure Lua. For general filesystem operations like finding the contents of folders, I suggest a more portable library like [LuaFileSystem](). However, you can get pretty far with a well-behaved way to call system commands:
+ Finally, @{copy_file} and @{move_file} are indispensible operations which are surprisingly tricky to write correctly in pure Lua. For general filesystem operations like finding the contents of folders, I suggest a more portable library like [LuaFileSystem](). However, you can get pretty far with a well-behaved way to call system commands:
 
     local status,output = winapi.execute('dir /B')
     local files = {}
@@ -279,7 +279,7 @@ Using a callback means that you can watch multiple directories and still respond
 
 ## Output and Timers
 
-GUI applications do not have a console so `print` does not work. `show_message` will put up a message box to bother users, and `output_debug_string` will write text quietly to the debug stream. A utility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647) can be used to view this output, which shows it with a timestamp.
+GUI applications do not have a console so @{print} does not work. @{show_message} will put up a message box to bother users, and @{output_debug_string} will write text quietly to the debug stream. A utility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647) can be used to view this output, which shows it with a timestamp.
 
 Here is the old favourite, system message boxes:
 
@@ -291,13 +291,13 @@ Or you may prefer to irritate the user with a sound:
 
     winapi.beep 'warning'
 
-It is straightforward to create a timer. You could of course use `sleep` but then your application will do nothing but sleep most of the time. This callback-driven timer can run in the background:
+It is straightforward to create a timer. You could of course use @{sleep} but then your application will do nothing but sleep most of the time. This callback-driven timer can run in the background:
 
-    winapi.timer(500,function()
+    winapi.make_timer(500,function()
         text:append 'gotcha'
     end)
 
-Such callbacks can be made GUI-safe by first calling `use_gui` which ensures that any callback is called in the main GUI thread.
+Such callbacks can be made GUI-safe by first calling @{use_gui} which ensures that any callback is called in the main GUI thread.
 
 The basic rule for callbacks enforced by `winapi` is that only one may be active at a time; otherwise we would risk re-entering Lua using the same state. So be quick when responding to callbacks, since they effectively block Lua. For a console application, the best bet (after setting some timers and so forth) is just to sleep indefinitely:
 
@@ -327,7 +327,7 @@ Life is more complicated on Windows (as usual) but with a little bit of help fro
 
     winapi.sleep(-1)
 
-Like timers and file notifications, this server runs in its own thread so we have to put the main thread to sleep.  This function is passed a callback and a pipe name; pipe names must look like '\\\\.\\pipe\\NAME' and the default name is '\\\\.\\pipe\\luawinapi'. The callback receives a file object - in this case we use `read_async` to play nice with other Lua threads. Multiple clients can have open connections in this way, up to the number of available pipes.
+Like timers and file notifications, this server runs in its own thread so we have to put the main thread to sleep.  This function is passed a callback and a pipe name; pipe names must look like '\\\\.\\pipe\\NAME' and the default name is '\\\\.\\pipe\\luawinapi'. The callback receives a file object - in this case we use @{File.read_async} to play nice with other Lua threads. Multiple clients can have open connections in this way, up to the number of available pipes.
 
 The client can connect in a very straightforward way:
 
@@ -342,9 +342,9 @@ and our server will say:
     ]
     []
 
-(Note that `read` receives an _empty string_ when the handle is closed.)
+(Note that @{File.read} receives an _empty string_ when the handle is closed.)
 
-However, we can't push 'standard' I/O very far here. So there is also a corresponding `open_pipe` which returns a file object, both readable and writeable. It's probably best to think of it as a kind of socket; each call to `read` and `write` are regarded as receive/send events.
+However, we can't push 'standard' I/O very far here. So there is also a corresponding @{open_pipe} which returns a file object, both readable and writeable. It's probably best to think of it as a kind of socket; each call to @{File.read} and @{File.write} are regarded as receive/send events.
 
 The server can do something to the received string and pass it back:
 

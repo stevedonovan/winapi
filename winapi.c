@@ -5,7 +5,7 @@ A useful set of Windows API functions.
  * Enumerating processes and querying their program name, memory used, etc.
  * Reading and Writing to the Registry
  * Copying and moving files, and showing drive information.
- * Lauching processes and opening documents.
+ * Launching processes and opening documents.
  * Monitoring filesystem changes.
 
 @author Steve Donovan  (steve.j.donovan@gmail.com)
@@ -115,10 +115,11 @@ static int l_encode(lua_State *L) {
 /// expand # unicode escapes in a string.
 // @param text ASCII text with #XXXX, where XXXX is four hex digits. ## means # itself.
 // @return text as UTF-8
+// @see testu.lua
 // @function utf8_expand
 static int l_utf8_expand(lua_State *L) {
   const char *text = luaL_checklstring(L,1,NULL);
-  #line 98 "winapi.l.c"
+  #line 99 "winapi.l.c"
   int len = strlen(text), i = 0, enc = get_encoding();
   WCHAR wch;
   LPWSTR P = wbuff;
@@ -158,7 +159,7 @@ static int push_new_Process(lua_State *L,Int pid, HANDLE ph);
 
 /// a class representing a Window.
 // @type Window
-#line 140 "winapi.l.c"
+#line 141 "winapi.l.c"
 
 typedef struct {
   HWND hwnd;
@@ -186,7 +187,7 @@ static int push_new_Window(lua_State *L,HWND h) {
 
 
 static void Window_ctor(lua_State *L, Window *this, HWND h) {
-    #line 141 "winapi.l.c"
+    #line 142 "winapi.l.c"
     this->hwnd = h;
   }
 
@@ -203,7 +204,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_handle
   static int l_Window_get_handle(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 156 "winapi.l.c"
+    #line 157 "winapi.l.c"
     lua_pushnumber(L,(DWORD_PTR)this->hwnd);
     return 1;
   }
@@ -212,7 +213,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_text
   static int l_Window_get_text(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 163 "winapi.l.c"
+    #line 164 "winapi.l.c"
     GetWindowTextW(this->hwnd,wbuff,sizeof(wbuff));
     return push_wstring(L,wbuff);
   }
@@ -222,7 +223,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   static int l_Window_set_text(lua_State *L) {
     Window *this = Window_arg(L,1);
     const char *text = luaL_checklstring(L,2,NULL);
-    #line 170 "winapi.l.c"
+    #line 171 "winapi.l.c"
     SetWindowTextW(this->hwnd,wstring(text));
     return 0;
   }
@@ -233,7 +234,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   static int l_Window_show(lua_State *L) {
     Window *this = Window_arg(L,1);
     int flags = luaL_optinteger(L,2,SW_SHOW);
-    #line 178 "winapi.l.c"
+    #line 179 "winapi.l.c"
     ShowWindow(this->hwnd,flags);
     return 0;
   }
@@ -244,7 +245,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_position
   static int l_Window_get_position(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 187 "winapi.l.c"
+    #line 188 "winapi.l.c"
     RECT rect;
     GetWindowRect(this->hwnd,&rect);
     lua_pushinteger(L,rect.left);
@@ -258,7 +259,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_bounds
   static int l_Window_get_bounds(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 199 "winapi.l.c"
+    #line 200 "winapi.l.c"
     RECT rect;
     GetWindowRect(this->hwnd,&rect);
     lua_pushinteger(L,rect.right - rect.left);
@@ -270,7 +271,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function is_visible
   static int l_Window_is_visible(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 209 "winapi.l.c"
+    #line 210 "winapi.l.c"
     lua_pushboolean(L,IsWindowVisible(this->hwnd));
     return 1;
   }
@@ -279,7 +280,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function destroy
   static int l_Window_destroy(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 216 "winapi.l.c"
+    #line 217 "winapi.l.c"
     DestroyWindow(this->hwnd);
     return 0;
   }
@@ -296,7 +297,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
     int y0 = luaL_checkinteger(L,3);
     int w = luaL_checkinteger(L,4);
     int h = luaL_checkinteger(L,5);
-    #line 227 "winapi.l.c"
+    #line 228 "winapi.l.c"
     MoveWindow(this->hwnd,x0,y0,w,h,TRUE);
     return 0;
   }
@@ -312,7 +313,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
     int msg = luaL_checkinteger(L,2);
     double wparam = luaL_checknumber(L,3);
     double lparam = luaL_checknumber(L,4);
-    #line 238 "winapi.l.c"
+    #line 239 "winapi.l.c"
     lua_pushinteger(L,SendMessage(this->hwnd,msg,(WPARAM)wparam,(LPARAM)lparam));
     return 1;
   }
@@ -323,7 +324,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   static int l_Window_enum_children(lua_State *L) {
     Window *this = Window_arg(L,1);
     int callback = 2;
-    #line 246 "winapi.l.c"
+    #line 247 "winapi.l.c"
     Ref ref;
     sL = L;
     ref = make_ref(L,callback);
@@ -336,7 +337,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_parent
   static int l_Window_get_parent(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 257 "winapi.l.c"
+    #line 258 "winapi.l.c"
     return push_new_Window(L,GetParent(this->hwnd));
   }
 
@@ -344,7 +345,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_module_filename
   static int l_Window_get_module_filename(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 263 "winapi.l.c"
+    #line 264 "winapi.l.c"
     int sz = GetWindowModuleFileNameW(this->hwnd,wbuff,sizeof(wbuff));
     wbuff[sz] = 0;
     return push_wstring(L,wbuff);
@@ -356,7 +357,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_class_name
   static int l_Window_get_class_name(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 273 "winapi.l.c"
+    #line 274 "winapi.l.c"
     GetClassNameW(this->hwnd,wbuff,sizeof(wbuff));
     return push_wstring(L,wbuff);
   }
@@ -365,7 +366,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function set_foreground
   static int l_Window_set_foreground(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 280 "winapi.l.c"
+    #line 281 "winapi.l.c"
     lua_pushboolean(L,SetForegroundWindow(this->hwnd));
     return 1;
   }
@@ -374,7 +375,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function get_process
   static int l_Window_get_process(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 287 "winapi.l.c"
+    #line 288 "winapi.l.c"
     DWORD pid;
     DWORD res = GetWindowThreadProcessId(this->hwnd,&pid);
     return push_new_Process(L,pid,NULL);
@@ -384,7 +385,7 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   // @function __tostring
   static int l_Window___tostring(lua_State *L) {
     Window *this = Window_arg(L,1);
-    #line 295 "winapi.l.c"
+    #line 296 "winapi.l.c"
     int ret;
     int sz = GetWindowTextW(this->hwnd,wbuff,sizeof(wbuff));
     if (sz > MAX_SHOW) {
@@ -400,12 +401,12 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
   static int l_Window___eq(lua_State *L) {
     Window *this = Window_arg(L,1);
     Window *other = Window_arg(L,2);
-    #line 308 "winapi.l.c"
+    #line 309 "winapi.l.c"
     lua_pushboolean(L,this->hwnd == other->hwnd);
     return 1;
   }
 
-#line 312 "winapi.l.c"
+#line 313 "winapi.l.c"
 
 static const struct luaL_reg Window_methods [] = {
      {"get_handle",l_Window_get_handle},
@@ -438,7 +439,7 @@ static void Window_register (lua_State *L) {
 }
 
 
-#line 314 "winapi.l.c"
+#line 315 "winapi.l.c"
 
 /// Manipulating Windows.
 // @section Windows
@@ -446,12 +447,12 @@ static void Window_register (lua_State *L) {
 /// find a window based on classname and caption
 // @param cname class name (may be nil)
 // @param wname caption (may be nil)
-// @return a window object
+// @return @{Window}
 // @function find_window
 static int l_find_window(lua_State *L) {
   const char *cname = lua_tostring(L,1);
   const char *wname = lua_tostring(L,2);
-  #line 323 "winapi.l.c"
+  #line 324 "winapi.l.c"
   HWND hwnd;
   hwnd = FindWindow(cname,wname);
   return push_new_Window(L,hwnd);
@@ -467,7 +468,7 @@ static int l_find_window(lua_State *L) {
 
 /// find a window using a condition function.
 // @param match will return true when its argument is the desired window
-// @return window object
+// @return @{Window}
 // @function find_window_ex
 
 /// return all windows matching a condition.
@@ -481,15 +482,16 @@ static int l_find_window(lua_State *L) {
 // @function find_window_match
 
 /// current foreground window.
-// @return a window object
+// An example of setting the caption is @{caption.lua}
+// @return @{Window}
 // @function get_foreground_window
 static int l_get_foreground_window(lua_State *L) {
   return push_new_Window(L, GetForegroundWindow());
 }
 
 /// the desktop window.
-// @return a window object
 // @usage winapi.get_desktop_window():get_bounds()
+// @return @{Window}
 // @function get_desktop_window
 static int l_get_desktop_window(lua_State *L) {
   return push_new_Window(L, GetDesktopWindow());
@@ -500,7 +502,7 @@ static int l_get_desktop_window(lua_State *L) {
 // @function enum_windows
 static int l_enum_windows(lua_State *L) {
   int callback = 1;
-  #line 370 "winapi.l.c"
+  #line 372 "winapi.l.c"
   Ref ref;
   sL = L;
   ref  = make_ref(L,callback);
@@ -510,6 +512,8 @@ static int l_enum_windows(lua_State *L) {
 }
 
 /// route callback dispatch through a message window.
+// You need to do this when using Winapi in a GUI application,
+// since it ensures that Lua callbacks happen in the GUI thread.
 // @function use_gui
 static int l_use_gui(lua_State *L) {
   make_message_window();
@@ -531,6 +535,8 @@ static INPUT *add_input(INPUT *pi, WORD vkey, BOOL up) {
 // it may be an integer (virtual key code) or string of characters.
 
 /// send a string or virtual key to the active window.
+// @{input.lua} shows launching a process, waiting for it to be
+// ready, and sending it some keys
 // @param text either a key (like winapi.VK_SHIFT) or a string
 // @return number of keys sent, or nil if an error
 // @return any error string
@@ -579,7 +585,7 @@ static int l_send_to_window(lua_State *L) {
 }
 
 /// tile a group of windows.
-// @param parent (can use the desktop)
+// @param parent @{Window} (can use the desktop)
 // @param horiz tile vertically by default
 // @param kids a table of window objects
 // @param bounds a bounds table (left,top,right,bottom) - can be nil
@@ -589,7 +595,7 @@ static int l_tile_windows(lua_State *L) {
   int horiz = lua_toboolean(L,2);
   int kids = 3;
   int bounds = 4;
-  #line 454 "winapi.l.c"
+  #line 460 "winapi.l.c"
   RECT rt;
   HWND *kids_arr;
   int i,n_kids;
@@ -624,7 +630,7 @@ static int l_tile_windows(lua_State *L) {
 // @function sleep
 static int l_sleep(lua_State *L) {
   int millisec = luaL_checkinteger(L,1);
-  #line 487 "winapi.l.c"
+  #line 493 "winapi.l.c"
   Sleep(millisec);
   return 0;
 }
@@ -637,13 +643,14 @@ static int l_sleep(lua_State *L) {
 // @param icon (default 'information') one of 'information','question','warning','error'
 // @return a string giving the pressed button: one of 'ok','yes','no','cancel',
 // 'try','abort' and 'retry'
+// @see message.lua
 // @function show_message
 static int l_show_message(lua_State *L) {
   const char *caption = luaL_checklstring(L,1,NULL);
   const char *msg = luaL_checklstring(L,2,NULL);
   const char *btns = luaL_optlstring(L,3,"ok",NULL);
   const char *icon = luaL_optlstring(L,4,"information",NULL);
-  #line 501 "winapi.l.c"
+  #line 508 "winapi.l.c"
   int res, type;
   WCHAR capb [512];
   type = mb_const(btns) | mb_const(icon);
@@ -658,7 +665,7 @@ static int l_show_message(lua_State *L) {
 // @function beep
 static int l_beep(lua_State *L) {
   const char *icon = luaL_optlstring(L,1,"ok",NULL);
-  #line 514 "winapi.l.c"
+  #line 521 "winapi.l.c"
   return push_bool(L, MessageBeep(mb_const(icon)));
 }
 
@@ -671,8 +678,20 @@ static int l_copy_file(lua_State *L) {
   const char *src = luaL_checklstring(L,1,NULL);
   const char *dest = luaL_checklstring(L,2,NULL);
   int fail_if_exists = luaL_optinteger(L,3,0);
-  #line 523 "winapi.l.c"
+  #line 530 "winapi.l.c"
   return push_bool(L, CopyFile(src,dest,fail_if_exists));
+}
+
+/// output text to the system debugger.
+// A uility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647)
+// can show the output
+// @param str text
+// @function output_debug_string
+static int l_output_debug_string(lua_State *L) {
+   const char *str = luaL_checklstring(L,1,NULL);
+   #line 539 "winapi.l.c"
+   OutputDebugString(str);
+   return 0;
 }
 
 /// move a file.
@@ -682,7 +701,7 @@ static int l_copy_file(lua_State *L) {
 static int l_move_file(lua_State *L) {
   const char *src = luaL_checklstring(L,1,NULL);
   const char *dest = luaL_checklstring(L,2,NULL);
-  #line 531 "winapi.l.c"
+  #line 548 "winapi.l.c"
   return push_bool(L, MoveFile(src,dest));
 }
 
@@ -701,7 +720,7 @@ static int l_shell_exec(lua_State *L) {
   const char *parms = lua_tostring(L,3);
   const char *dir = lua_tostring(L,4);
   int show = luaL_optinteger(L,5,SW_SHOWNORMAL);
-  #line 544 "winapi.l.c"
+  #line 561 "winapi.l.c"
   WCHAR wverb[128], wfile[MAX_WPATH], wdir[MAX_WPATH], wparms[MAX_WPATH];
   int res = (DWORD_PTR)ShellExecuteW(NULL,wconv(verb),wconv(file),wconv(parms),wconv(dir),show) > 32;
   return push_bool(L, res);
@@ -712,7 +731,7 @@ static int l_shell_exec(lua_State *L) {
 // @function set_clipboard
 static int l_set_clipboard(lua_State *L) {
   const char *text = luaL_checklstring(L,1,NULL);
-  #line 553 "winapi.l.c"
+  #line 570 "winapi.l.c"
   HGLOBAL glob;
   LPWSTR p;
   int bufsize = 3*strlen(text);
@@ -756,7 +775,7 @@ static int l_get_clipboard(lua_State *L) {
 /// A class representing a Windows process.
 // this example was [helpful](http://msdn.microsoft.com/en-us/library/ms682623%28VS.85%29.aspx)
 // @type Process
-#line 600 "winapi.l.c"
+#line 617 "winapi.l.c"
 
 typedef struct {
   HANDLE hProcess;
@@ -785,7 +804,7 @@ static int push_new_Process(lua_State *L,Int pid, HANDLE ph) {
 
 
 static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
-    #line 601 "winapi.l.c"
+    #line 618 "winapi.l.c"
     if (ph) {
       this->pid = pid;
       this->hProcess = ph;
@@ -803,7 +822,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   static int l_Process_get_process_name(lua_State *L) {
     Process *this = Process_arg(L,1);
     int full = lua_toboolean(L,2);
-    #line 616 "winapi.l.c"
+    #line 633 "winapi.l.c"
     HMODULE hMod;
     DWORD cbNeeded;
     wchar_t modname[MAX_PATH];
@@ -821,10 +840,11 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   }
 
   /// kill the process.
+  // @{test-spawn.lua} kills a launched process after a certain amount of output.
   // @function kill
   static int l_Process_kill(lua_State *L) {
     Process *this = Process_arg(L,1);
-    #line 635 "winapi.l.c"
+    #line 653 "winapi.l.c"
     TerminateProcess(this->hProcess,0);
     return 0;
   }
@@ -835,7 +855,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   // @function get_working_size
   static int l_Process_get_working_size(lua_State *L) {
     Process *this = Process_arg(L,1);
-    #line 644 "winapi.l.c"
+    #line 662 "winapi.l.c"
     SIZE_T minsize, maxsize;
     GetProcessWorkingSetSize(this->hProcess,&minsize,&maxsize);
     lua_pushnumber(L,minsize/1024);
@@ -848,7 +868,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   // @function get_start_time
   static int l_Process_get_start_time(lua_State *L) {
     Process *this = Process_arg(L,1);
-    #line 655 "winapi.l.c"
+    #line 673 "winapi.l.c"
     FILETIME create,exit,kernel,user,local;
     SYSTEMTIME time;
     GetProcessTimes(this->hProcess,&create,&exit,&kernel,&user);
@@ -881,7 +901,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   // @function get_run_times
   static int l_Process_get_run_times(lua_State *L) {
     Process *this = Process_arg(L,1);
-    #line 686 "winapi.l.c"
+    #line 704 "winapi.l.c"
     FILETIME create,exit,kernel,user;
     GetProcessTimes(this->hProcess,&create,&exit,&kernel,&user);
     lua_pushnumber(L,fileTimeToMillisec(&user));
@@ -911,7 +931,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   static int l_Process_wait(lua_State *L) {
     Process *this = Process_arg(L,1);
     int timeout = luaL_optinteger(L,2,0);
-    #line 713 "winapi.l.c"
+    #line 731 "winapi.l.c"
     return push_wait_result(L, WaitForSingleObject(this->hProcess, TIMEOUT(timeout)));
   }
 
@@ -924,7 +944,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   static int l_Process_wait_for_input_idle(lua_State *L) {
     Process *this = Process_arg(L,1);
     int timeout = luaL_optinteger(L,2,0);
-    #line 723 "winapi.l.c"
+    #line 741 "winapi.l.c"
     return push_wait_result(L, WaitForInputIdle(this->hProcess, TIMEOUT(timeout)));
   }
 
@@ -934,7 +954,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   // @function get_exit_code
   static int l_Process_get_exit_code(lua_State *L) {
     Process *this = Process_arg(L,1);
-    #line 731 "winapi.l.c"
+    #line 749 "winapi.l.c"
     DWORD code;
     GetExitCodeProcess(this->hProcess, &code);
     lua_pushinteger(L,code);
@@ -945,7 +965,7 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
   // @function close
   static int l_Process_close(lua_State *L) {
     Process *this = Process_arg(L,1);
-    #line 740 "winapi.l.c"
+    #line 758 "winapi.l.c"
     CloseHandle(this->hProcess);
     this->hProcess = NULL;
     return 0;
@@ -953,12 +973,12 @@ static void Process_ctor(lua_State *L, Process *this, Int pid, HANDLE ph) {
 
   static int l_Process___gc(lua_State *L) {
     Process *this = Process_arg(L,1);
-    #line 746 "winapi.l.c"
+    #line 764 "winapi.l.c"
     if (this->hProcess != NULL)
       CloseHandle(this->hProcess);
     return 0;
   }
-#line 750 "winapi.l.c"
+#line 768 "winapi.l.c"
 
 static const struct luaL_reg Process_methods [] = {
      {"get_process_name",l_Process_get_process_name},
@@ -983,21 +1003,23 @@ static void Process_register (lua_State *L) {
 }
 
 
-#line 752 "winapi.l.c"
+#line 770 "winapi.l.c"
 
 /// Working with processes.
 // @section Processes
 
 /// create a process object from the id.
 // @param pid the process id
-// @function Process
-static int l_Process(lua_State *L) {
+// @return @{Process}
+// @function process_from_id
+static int l_process_from_id(lua_State *L) {
   int pid = luaL_checkinteger(L,1);
-  #line 759 "winapi.l.c"
+  #line 778 "winapi.l.c"
   return push_new_Process(L,pid,NULL);
 }
 
 /// process id of current process.
+// @return integer id
 // @function get_current_pid
 static int l_get_current_pid(lua_State *L) {
   lua_pushinteger(L,GetCurrentProcessId());
@@ -1005,12 +1027,14 @@ static int l_get_current_pid(lua_State *L) {
 }
 
 /// process object of the current process.
+// @return @{Process}
 // @function get_current_process
 static int l_get_current_process(lua_State *L) {
   return push_new_Process(L,0,GetCurrentProcess());
 }
 
 /// get all process ids in the system.
+// @{test-processes.lua} is a simple `ps` equivalent.
 // @return an array of process ids.
 // @function get_processes
 static int l_get_processes(lua_State *L) {
@@ -1032,8 +1056,10 @@ static int l_get_processes(lua_State *L) {
   return 1;
 }
 
-/// wait for a group of processes
-// @param processes an array of process objects
+/// wait for a group of processes.
+// @{process-wait.lua} shows a number of processes launched
+// in parallel
+// @param processes an array of @{Process} objects
 // @param all wait for all processes to finish (default false)
 // @param timeout wait upto this time in msec (default infinite)
 // @function wait_for_processes
@@ -1041,7 +1067,7 @@ static int l_wait_for_processes(lua_State *L) {
   int processes = 1;
   int all = lua_toboolean(L,2);
   int timeout = luaL_optinteger(L,3,0);
-  #line 803 "winapi.l.c"
+  #line 827 "winapi.l.c"
   int status, i;
   Process *p;
   int n = lua_objlen(L,processes);
@@ -1112,11 +1138,11 @@ void lcb_free(void *data) {
   release_ref(lcb->L,lcb->callback);
 }
 
-/// Thread object. This is returned by the `read_async` method and the `timer`,
-// `server` and `watch_for_file_changes` functions. Useful to kill a thread
+/// Thread object. This is returned by the @{File.read_async} method and the @{make_timer},
+// @{make_pipe_server} and @{watch_for_file_changes} functions. Useful to kill a thread
 // and free associated resources.
 // @type Thread
-#line 881 "winapi.l.c"
+#line 905 "winapi.l.c"
 
 typedef struct {
   LuaCallback *lcb;
@@ -1145,7 +1171,7 @@ static int push_new_Thread(lua_State *L,PLuaCallback lcb, HANDLE thread) {
 
 
 static void Thread_ctor(lua_State *L, Thread *this, PLuaCallback lcb, HANDLE thread) {
-    #line 882 "winapi.l.c"
+    #line 906 "winapi.l.c"
     this->lcb = lcb;
     this->thread = thread;
   }
@@ -1154,7 +1180,7 @@ static void Thread_ctor(lua_State *L, Thread *this, PLuaCallback lcb, HANDLE thr
   // @function suspend
   static int l_Thread_suspend(lua_State *L) {
     Thread *this = Thread_arg(L,1);
-    #line 889 "winapi.l.c"
+    #line 913 "winapi.l.c"
     return push_bool(L, SuspendThread(this->thread) >= 0);
   }
 
@@ -1162,17 +1188,17 @@ static void Thread_ctor(lua_State *L, Thread *this, PLuaCallback lcb, HANDLE thr
   // @function resume
   static int l_Thread_resume(lua_State *L) {
     Thread *this = Thread_arg(L,1);
-    #line 895 "winapi.l.c"
+    #line 919 "winapi.l.c"
     return push_bool(L, ResumeThread(this->thread) >= 0);
   }
 
   /// kill this thread. Generally considered a 'nuclear' option, but
   // this implementation will free any associated callback references, buffers
-  // and handles.
+  // and handles. @{test-timer.lua} shows how a timer can be terminated.
   // @function kill
   static int l_Thread_kill(lua_State *L) {
     Thread *this = Thread_arg(L,1);
-    #line 903 "winapi.l.c"
+    #line 927 "winapi.l.c"
     lcb_free(this->lcb);
     return push_bool(L, TerminateThread(this->thread,1));
   }
@@ -1183,7 +1209,7 @@ static void Thread_ctor(lua_State *L, Thread *this, PLuaCallback lcb, HANDLE thr
   static int l_Thread_set_priority(lua_State *L) {
     Thread *this = Thread_arg(L,1);
     int p = luaL_checkinteger(L,2);
-    #line 911 "winapi.l.c"
+    #line 935 "winapi.l.c"
     return push_bool(L, SetThreadPriority(this->thread,p));
   }
 
@@ -1191,7 +1217,7 @@ static void Thread_ctor(lua_State *L, Thread *this, PLuaCallback lcb, HANDLE thr
   // @function get_priority
   static int l_Thread_get_priority(lua_State *L) {
     Thread *this = Thread_arg(L,1);
-    #line 917 "winapi.l.c"
+    #line 941 "winapi.l.c"
     int res = GetThreadPriority(this->thread);
     if (res != THREAD_PRIORITY_ERROR_RETURN) {
       lua_pushinteger(L,res);
@@ -1203,12 +1229,12 @@ static void Thread_ctor(lua_State *L, Thread *this, PLuaCallback lcb, HANDLE thr
 
   static int l_Thread___gc(lua_State *L) {
     Thread *this = Thread_arg(L,1);
-    #line 927 "winapi.l.c"
+    #line 951 "winapi.l.c"
     // lcb_free(this->lcb); concerned that this cd kick in prematurely!
     CloseHandle(this->thread);
     return 0;
   }
-#line 931 "winapi.l.c"
+#line 955 "winapi.l.c"
 
 static const struct luaL_reg Thread_methods [] = {
      {"suspend",l_Thread_suspend},
@@ -1229,7 +1255,7 @@ static void Thread_register (lua_State *L) {
 }
 
 
-#line 933 "winapi.l.c"
+#line 957 "winapi.l.c"
 
 typedef LPTHREAD_START_ROUTINE  TCB;
 
@@ -1246,7 +1272,7 @@ int lcb_new_thread(TCB fun, void *data) {
 /// this represents a raw Windows file handle.
 // The write handle may be distinct from the read handle.
 // @type File
-#line 952 "winapi.l.c"
+#line 976 "winapi.l.c"
 
 typedef struct {
   callback_data_
@@ -1275,7 +1301,7 @@ static int push_new_File(lua_State *L,HANDLE hread, HANDLE hwrite) {
 
 
 static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
-    #line 953 "winapi.l.c"
+    #line 977 "winapi.l.c"
     lcb_handle(this) = hread;
     this->hWrite = hwrite;
     this->L = L;
@@ -1289,7 +1315,7 @@ static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
   static int l_File_write(lua_State *L) {
     File *this = File_arg(L,1);
     const char *s = luaL_checklstring(L,2,NULL);
-    #line 964 "winapi.l.c"
+    #line 988 "winapi.l.c"
     DWORD bytesWrote;
     WriteFile(this->hWrite, s, lua_objlen(L,2), &bytesWrote, NULL);
     lua_pushinteger(L,bytesWrote);
@@ -1310,7 +1336,7 @@ static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
   // @function read
   static int l_File_read(lua_State *L) {
     File *this = File_arg(L,1);
-    #line 983 "winapi.l.c"
+    #line 1007 "winapi.l.c"
     if (raw_read(this)) {
       lua_pushstring(L,lcb_buf(this));
       return 1;
@@ -1331,19 +1357,19 @@ static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
   /// asynchronous read.
   // @param callback function that will receive each chunk of text
   // as it comes in.
-  // @return a thread object.
+  // @return @{Thread}
   // @function read_async
   static int l_File_read_async(lua_State *L) {
     File *this = File_arg(L,1);
     int callback = 2;
-    #line 1006 "winapi.l.c"
+    #line 1030 "winapi.l.c"
     this->callback = make_ref(L,callback);
     return lcb_new_thread((TCB)&file_reader,this);
   }
 
   static int l_File_close(lua_State *L) {
     File *this = File_arg(L,1);
-    #line 1011 "winapi.l.c"
+    #line 1035 "winapi.l.c"
     if (this->hWrite != lcb_handle(this))
       CloseHandle(this->hWrite);
     lcb_free(this);
@@ -1352,11 +1378,11 @@ static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
 
   static int l_File___gc(lua_State *L) {
     File *this = File_arg(L,1);
-    #line 1018 "winapi.l.c"
+    #line 1042 "winapi.l.c"
     free(this->buf);
     return 0;
   }
-#line 1021 "winapi.l.c"
+#line 1045 "winapi.l.c"
 
 static const struct luaL_reg File_methods [] = {
      {"write",l_File_write},
@@ -1376,12 +1402,14 @@ static void File_register (lua_State *L) {
 }
 
 
-#line 1023 "winapi.l.c"
+#line 1047 "winapi.l.c"
 
 /// Launching processes.
 // @section Launch
 
 /// set an environment variable for any child processes.
+// @{setenv.lua} shows how this also affects processes
+// launched with @{os.execute}
 // Note that this can't affect any system environment variables, see
 // [here](http://msdn.microsoft.com/en-us/library/ms682653%28VS.85%29.aspx)
 // for how to set these.
@@ -1391,7 +1419,7 @@ static void File_register (lua_State *L) {
 static int l_setenv(lua_State *L) {
   const char *name = luaL_checklstring(L,1,NULL);
   const char *value = luaL_checklstring(L,2,NULL);
-  #line 1034 "winapi.l.c"
+  #line 1060 "winapi.l.c"
   WCHAR wname[256],wvalue[MAX_WPATH];
   return push_bool(L, SetEnvironmentVariableW(wconv(name),wconv(value)));
 }
@@ -1399,14 +1427,13 @@ static int l_setenv(lua_State *L) {
 /// Spawn a process.
 // @param program the command-line (program + parameters)
 // @param dir the working directory for the process (optional)
-// @return a process object
-// @return a File object
-// @see File, Process
+// @return @{Process}
+// @return @{File}
 // @function spawn_process
 static int l_spawn_process(lua_State *L) {
   const char *program = luaL_checklstring(L,1,NULL);
   const char *dir = lua_tostring(L,2);
-  #line 1046 "winapi.l.c"
+  #line 1071 "winapi.l.c"
   WCHAR wdir [MAX_WPATH];
   SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, 0};
   SECURITY_DESCRIPTOR sd;
@@ -1496,14 +1523,16 @@ static void timer_thread(TimerData *data) { // background timer thread
 
 /// Create an asynchronous timer.
 // The callback can return true if it wishes to cancel the timer.
+// @{test-sleep.lua} shows how you need to call @{sleep} at the end of
+// a console application for these timers to work in the background.
 // @param msec interval in millisec
 // @param callback a function to be called at each interval.
-// @return a thread object.
+// @return @{Thread}
 // @function make_timer
 static int l_make_timer(lua_State *L) {
   int msec = luaL_checkinteger(L,1);
   int callback = 2;
-  #line 1140 "winapi.l.c"
+  #line 1167 "winapi.l.c"
   TimerData *data = (TimerData *)malloc(sizeof(TimerData));
   data->msec = msec;
   lcb_callback(data,L,callback);
@@ -1557,7 +1586,7 @@ static void pipe_server_thread(PipeServerParms *parms) {
 // @function open_pipe
 static int l_open_pipe(lua_State *L) {
   const char *pipename = luaL_optlstring(L,1,"\\\\.\\pipe\\luawinapi",NULL);
-  #line 1192 "winapi.l.c"
+  #line 1219 "winapi.l.c"
   HANDLE hPipe = CreateFile(
       pipename,
       GENERIC_READ |  // read and write access
@@ -1581,12 +1610,12 @@ static int l_open_pipe(lua_State *L) {
 // @param callback a function that will be passed a File object
 // @param pipename Must be of the form \\.\pipe\name, defaults to
 // \\.\pipe\luawinapi.
-// @return a thread object.
+// @return @{Thread}.
 // @function make_pipe_server
 static int l_make_pipe_server(lua_State *L) {
   int callback = 1;
   const char *pipename = luaL_optlstring(L,2,"\\\\.\\pipe\\luawinapi",NULL);
-  #line 1218 "winapi.l.c"
+  #line 1245 "winapi.l.c"
   PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
   lcb_callback(psp,L,callback);
   psp->pipename = pipename;
@@ -1639,13 +1668,13 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
 /// the short path name of a directory or file.
 // This is always in ASCII, 8.3 format. This function will create the
 // file first if it does not exist; the result can be used to open
-// files with unicode names.
+// files with unicode names (see @{testshort.lua})
 // @param path multibyte encoded file path
 // @return ASCII 8.3 format file path
 // @function short_path
 static int l_short_path(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
-  #line 1275 "winapi.l.c"
+  #line 1302 "winapi.l.c"
   WCHAR wpath[MAX_WPATH];
   HANDLE hFile;
   int res;
@@ -1694,15 +1723,17 @@ static int l_short_path(lua_State *L) {
 // @param mask a file mask like "*.txt"
 // @param subdirs iterate over subdirectories (default no)
 // @param attrib iterate over items with given attribute (as in dir /A:)
+// @see files.lua
 // @function files
 
 /// iterate over subdirectories
 // @param file mask like "mydirs\\t*"
 // @param subdirs iterate over subdirectories (default no)
-// @see get_files
+// @see files
 // @function dirs
 
 /// get all the drives on this computer.
+// An example is @{drives.lua}
 // @return a table of drive names
 // @function get_logical_drives
 static int l_get_logical_drives(lua_State *L) {
@@ -1729,7 +1760,7 @@ static int l_get_logical_drives(lua_State *L) {
 // @function get_drive_type
 static int l_get_drive_type(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1357 "winapi.l.c"
+  #line 1386 "winapi.l.c"
   UINT res = GetDriveType(root);
   const char *type;
   switch(res) {
@@ -1752,7 +1783,7 @@ static int l_get_drive_type(lua_State *L) {
 // @function get_disk_free_space
 static int l_get_disk_free_space(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1378 "winapi.l.c"
+  #line 1407 "winapi.l.c"
   ULARGE_INTEGER freebytes, totalbytes;
   if (! GetDiskFreeSpaceEx(root,&freebytes,&totalbytes,NULL)) {
     return push_error(L);
@@ -1768,7 +1799,7 @@ static int l_get_disk_free_space(lua_State *L) {
 // @function get_disk_network_name
 static int l_get_disk_network_name(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1392 "winapi.l.c"
+  #line 1421 "winapi.l.c"
   DWORD size = sizeof(wbuff);
   DWORD res = WNetGetConnectionW(wstring(root),wbuff,&size);
   if (res == NO_ERROR) {
@@ -1797,13 +1828,14 @@ static int l_get_disk_network_name(lua_State *L) {
 // * `FILE_ACTION_RENAMED_NEW_NAME`
 //
 // @return a thread object.
+// @see test-watcher.lua
 // @function watch_for_file_changes
 static int l_watch_for_file_changes(lua_State *L) {
   const char *dir = luaL_checklstring(L,1,NULL);
   int how = luaL_checkinteger(L,2);
   int subdirs = lua_toboolean(L,3);
   int callback = 4;
-  #line 1422 "winapi.l.c"
+  #line 1452 "winapi.l.c"
   FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
   lcb_callback(fc,L,callback);
   fc->how = how;
@@ -1825,7 +1857,7 @@ static int l_watch_for_file_changes(lua_State *L) {
 
 /// Class representing Windows registry keys.
 // @type Regkey
-#line 1446 "winapi.l.c"
+#line 1476 "winapi.l.c"
 
 typedef struct {
   HKEY key;
@@ -1853,7 +1885,7 @@ static int push_new_Regkey(lua_State *L,HKEY k) {
 
 
 static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
-    #line 1447 "winapi.l.c"
+    #line 1477 "winapi.l.c"
     this->key = k;
   }
 
@@ -1865,7 +1897,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_checklstring(L,2,NULL);
     const char *val = luaL_checklstring(L,3,NULL);
-    #line 1455 "winapi.l.c"
+    #line 1485 "winapi.l.c"
     return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) == ERROR_SUCCESS);
   }
 
@@ -1877,7 +1909,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   static int l_Regkey_get_value(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_optlstring(L,2,"",NULL);
-    #line 1464 "winapi.l.c"
+    #line 1494 "winapi.l.c"
     DWORD type,size = sizeof(wbuff);
     if (RegQueryValueExW(this->key,wstring(name),0,&type,(void *)wbuff,&size) != ERROR_SUCCESS) {
       return push_error(L);
@@ -1899,7 +1931,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function get_keys
   static int l_Regkey_get_keys(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1484 "winapi.l.c"
+    #line 1514 "winapi.l.c"
     int i = 0;
     LONG res;
     DWORD size;
@@ -1925,7 +1957,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function close
   static int l_Regkey_close(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1508 "winapi.l.c"
+    #line 1538 "winapi.l.c"
     RegCloseKey(this->key);
     this->key = NULL;
     return 0;
@@ -1937,19 +1969,19 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function flush
   static int l_Regkey_flush(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1518 "winapi.l.c"
+    #line 1548 "winapi.l.c"
     return push_bool(L,RegFlushKey(this->key));
   }
 
   static int l_Regkey___gc(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1522 "winapi.l.c"
+    #line 1552 "winapi.l.c"
     if (this->key != NULL)
       RegCloseKey(this->key);
     return 0;
   }
 
-#line 1527 "winapi.l.c"
+#line 1557 "winapi.l.c"
 
 static const struct luaL_reg Regkey_methods [] = {
      {"set_value",l_Regkey_set_value},
@@ -1970,21 +2002,22 @@ static void Regkey_register (lua_State *L) {
 }
 
 
-#line 1529 "winapi.l.c"
+#line 1559 "winapi.l.c"
 
 /// Registry Functions.
 // @section Registry
 
 /// Open a registry key.
+// @{test-reg.lua} shows reading a registry value and enumerating subkeys.
 // @param path the full registry key
 // e.g `[[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]`
 // @param writeable true if you want to set values
-// @return a Regkey object
+// @return @{Regkey}
 // @function open_reg_key
 static int l_open_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
   int writeable = lua_toboolean(L,2);
-  #line 1539 "winapi.l.c"
+  #line 1570 "winapi.l.c"
   HKEY hKey;
   DWORD access;
   char kbuff[1024];
@@ -2002,11 +2035,11 @@ static int l_open_reg_key(lua_State *L) {
 
 /// Create a registry key.
 // @param path the full registry key
-// @return a regkey object
+// @return @{Regkey}
 // @function create_reg_key
 static int l_create_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
-  #line 1559 "winapi.l.c"
+  #line 1590 "winapi.l.c"
   char kbuff[1024];
   HKEY hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
@@ -2019,7 +2052,7 @@ static int l_create_reg_key(lua_State *L) {
   }
 }
 
-#line 1642 "winapi.l.c"
+#line 1673 "winapi.l.c"
 static const char *lua_code_block = ""\
   "function winapi.execute(cmd,unicode)\n"\
   "  local comspec = os.getenv('COMSPEC')\n"\
@@ -2098,7 +2131,7 @@ static void load_lua_code (lua_State *L) {
 
 
 
-#line 1645 "winapi.l.c"
+#line 1676 "winapi.l.c"
 
 
 /*** Constants.
@@ -2148,17 +2181,17 @@ The following constants are available:
  * FILE\_ACTION\_RENAMED\_NEW\_NAME
 
  @section constants
- */#line 1692 "winapi.l.c"
+ */#line 1723 "winapi.l.c"
 
 
- #line 1694 "winapi.l.c"
+ #line 1725 "winapi.l.c"
 
  /// useful Windows API constants
  // @table constants
 
 #define CP_UTF16 -1
 
-#line 1742 "winapi.l.c"
+#line 1773 "winapi.l.c"
 static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,CP_ACP); lua_setfield(L,-2,"CP_ACP");
  lua_pushinteger(L,CP_UTF8); lua_setfield(L,-2,"CP_UTF8");
@@ -2204,7 +2237,7 @@ static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,FILE_ACTION_RENAMED_NEW_NAME); lua_setfield(L,-2,"FILE_ACTION_RENAMED_NEW_NAME");
 }
 
-#line 1744 "winapi.l.c"
+#line 1775 "winapi.l.c"
 static const luaL_reg winapi_funs[] = {
        {"set_encoding",l_set_encoding},
    {"get_encoding",l_get_encoding},
@@ -2221,11 +2254,12 @@ static const luaL_reg winapi_funs[] = {
    {"show_message",l_show_message},
    {"beep",l_beep},
    {"copy_file",l_copy_file},
+   {"output_debug_string",l_output_debug_string},
    {"move_file",l_move_file},
    {"shell_exec",l_shell_exec},
    {"set_clipboard",l_set_clipboard},
    {"get_clipboard",l_get_clipboard},
-   {"Process",l_Process},
+   {"process_from_id",l_process_from_id},
    {"get_current_pid",l_get_current_pid},
    {"get_current_process",l_get_current_process},
    {"get_processes",l_get_processes},

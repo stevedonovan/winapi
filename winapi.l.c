@@ -530,6 +530,16 @@ def copy_file(Str src, Str dest, Int fail_if_exists = 0) {
   return push_bool(L, CopyFile(src,dest,fail_if_exists));
 }
 
+/// output text to the system debugger.
+// A uility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647)
+// can show the output
+// @param str text
+// @function output_debug_string
+def output_debug_string(Str str) {
+   OutputDebugString(str);
+   return 0;
+}
+
 /// move a file.
 // @param src source file
 // @param dest destination file
