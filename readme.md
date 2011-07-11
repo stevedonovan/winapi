@@ -1,8 +1,8 @@
-## winapi A useful Windows API subset for Lua
+# winapi A useful Windows API subset for Lua
 
 This module provides some basic tools for working with Windows systems, finding out system resources, and gives you more control over process creation.  In this introduction any plain reference is in the `winapi` table, so that `find_window` means `winapi.find_window`.  Normally `winapi` works with the current Windows code page, but can be told to use UTF-8 with `set_encoding`; interally string operations are in Unicode.
 
-### Creating and working with Processes
+## Creating and working with Processes
 
 An  irritating fact is that Lua GUI applications (such as IUP or wxLua) cannot use `os.execute` without the infamous 'flashing black box' of console creation. And `io.popen` may in fact not work at all.
 
@@ -101,7 +101,7 @@ It is possible to wait on more than one process at a time. Consider this simple 
 
     for i = 1,1e8 do end
 
-It takes me 0.743 seconds to do this. But running two such scripts in parallel is about the same speed (0.776):
+It takes me 0.743 seconds to do this, with stock Lua 5.1. But running two such scripts in parallel is about the same speed (0.776):
 
     require 'winapi'
     local t = os.clock()
@@ -113,7 +113,7 @@ It takes me 0.743 seconds to do this. But running two such scripts in parallel i
 
 So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long. The second parameter means 'wait for all'; like the `wait` method, it has an optional timeout parameter.
 
-### Working with Windows
+## Working with Windows
 
 The windows object provides methods for querying window properties. For instance, the desktop window fills the whole screen, so to find out the screen dimensions is straightforward:
 
@@ -190,7 +190,7 @@ An important point is that you can choose to use UTF-8 encoding with winapi. Thi
 When run in SciTE, it successfully puts a little bit of Greek in the title bar.
 
 
-### Working with Processes
+## Working with Processes
 
 `current_process` will give you a process object for the current program. It's also possible to get a process object from a program's window:
 
@@ -217,7 +217,7 @@ To get all the current processes:
     end
 
 
-### Drive and Directory Operations
+## Drive and Directory Operations
 
 There are functions for querying the filesystem: `get_logical_drives()` returns all available drives (in 'D:\\' format) and `get_drive_type()` will tell you whether these drives are fixed, remote, removable, etc. `get_disk_free_space()` will return the space used and the space available in kB as two results.
 
@@ -277,7 +277,7 @@ Using a callback means that you can watch multiple directories and still respond
         table.insert(files,f)
     end
 
-### Output and Timers
+## Output and Timers
 
 GUI applications do not have a console so `print` does not work. `show_message` will put up a message box to bother users, and `output_debug_string` will write text quietly to the debug stream. A utility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647) can be used to view this output, which shows it with a timestamp.
 
@@ -311,9 +311,9 @@ To show what happens if you don't follow the rule:
 
 In short: completely messed!
 
-### Reading from the Registry
+## Reading from the Registry
 
-### Pipe Server
+## Pipe Server
 
 Interprocess communication (IPC) is one of those tangled, operating-system-dependent things that can be terribly useful. On Unix, _named pipes_ are special files which can be used for two processes to easily exchange information. One process opens the pipe for reading, and the other process opens it for writing; the first process will start reading, and this will block until the other process writes to the pipe. Since pipes are a regular part of the filesystem, two Lua scripts can use regular I/O to complete this transaction.
 

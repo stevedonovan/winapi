@@ -93,6 +93,7 @@ def encode(Int e_in, Int e_out, Str text) {
 /// expand # unicode escapes in a string.
 // @param text ASCII text with #XXXX, where XXXX is four hex digits. ## means # itself.
 // @return text as UTF-8
+// @see testu.lua
 // @function utf8_expand
 def utf8_expand(Str text) {
   int len = strlen(text), i = 0, enc = get_encoding();
@@ -349,6 +350,7 @@ def find_window(StrNil cname, StrNil wname) {
 // @function find_window_match
 
 /// current foreground window.
+// An example of setting the caption is @{caption.lua}
 // @return @{Window}
 // @function get_foreground_window
 def get_foreground_window() {
@@ -399,6 +401,8 @@ static INPUT *add_input(INPUT *pi, WORD vkey, BOOL up) {
 // it may be an integer (virtual key code) or string of characters.
 
 /// send a string or virtual key to the active window.
+// @{input.lua} shows launching a process, waiting for it to be
+// ready, and sending it some keys
 // @param text either a key (like winapi.VK_SHIFT) or a string
 // @return number of keys sent, or nil if an error
 // @return any error string
@@ -498,6 +502,7 @@ def sleep(Int millisec) {
 // @param icon (default 'information') one of 'information','question','warning','error'
 // @return a string giving the pressed button: one of 'ok','yes','no','cancel',
 // 'try','abort' and 'retry'
+// @see message.lua
 // @function show_message
 def show_message(Str caption, Str msg, Str btns = "ok", Str icon = "information") {
   int res, type;
@@ -632,6 +637,7 @@ class Process {
   }
 
   /// kill the process.
+  // @{test-spawn.lua} kills a launched process after a certain amount of output.
   // @function kill
   def kill() {
     TerminateProcess(this->hProcess,0);
@@ -778,6 +784,7 @@ def get_current_process() {
 }
 
 /// get all process ids in the system.
+// @{test-processes.lua} is a simple `ps` equivalent.
 // @return an array of process ids.
 // @function get_processes
 def get_processes() {
@@ -799,7 +806,9 @@ def get_processes() {
   return 1;
 }
 
-/// wait for a group of processes
+/// wait for a group of processes.
+// @{process-wait.lua} shows a number of processes launched
+// in parallel
 // @param processes an array of @{Process} objects
 // @param all wait for all processes to finish (default false)
 // @param timeout wait upto this time in msec (default infinite)
@@ -902,7 +911,7 @@ class Thread {
 
   /// kill this thread. Generally considered a 'nuclear' option, but
   // this implementation will free any associated callback references, buffers
-  // and handles.
+  // and handles. @{test-timer.lua} shows how a timer can be terminated.
   // @function kill
   def kill() {
     lcb_free(this->lcb);
@@ -1029,6 +1038,8 @@ class File {
 // @section Launch
 
 /// set an environment variable for any child processes.
+// @{setenv.lua} shows how this also affects processes
+// launched with @{os.execute}
 // Note that this can't affect any system environment variables, see
 // [here](http://msdn.microsoft.com/en-us/library/ms682653%28VS.85%29.aspx)
 // for how to set these.
@@ -1136,6 +1147,8 @@ static void timer_thread(TimerData *data) { // background timer thread
 
 /// Create an asynchronous timer.
 // The callback can return true if it wishes to cancel the timer.
+// @{test-sleep.lua} shows how you need to call @{sleep} at the end of
+// a console application for these timers to work in the background.
 // @param msec interval in millisec
 // @param callback a function to be called at each interval.
 // @return @{Thread}
@@ -1271,7 +1284,7 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
 /// the short path name of a directory or file.
 // This is always in ASCII, 8.3 format. This function will create the
 // file first if it does not exist; the result can be used to open
-// files with unicode names.
+// files with unicode names (see @{testshort.lua})
 // @param path multibyte encoded file path
 // @return ASCII 8.3 format file path
 // @function short_path
@@ -1324,6 +1337,7 @@ def short_path(Str path) {
 // @param mask a file mask like "*.txt"
 // @param subdirs iterate over subdirectories (default no)
 // @param attrib iterate over items with given attribute (as in dir /A:)
+// @see files.lua
 // @function files
 
 /// iterate over subdirectories
@@ -1333,6 +1347,7 @@ def short_path(Str path) {
 // @function dirs
 
 /// get all the drives on this computer.
+// An example is @{drives.lua}
 // @return a table of drive names
 // @function get_logical_drives
 def get_logical_drives() {
@@ -1421,6 +1436,7 @@ def get_disk_network_name(Str root) {
 // * `FILE_ACTION_RENAMED_NEW_NAME`
 //
 // @return a thread object.
+// @see test-watcher.lua
 // @function watch_for_file_changes
 def watch_for_file_changes (Str dir, Int how, Boolean subdirs, Value callback) {
   FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
@@ -1534,6 +1550,7 @@ class Regkey {
 // @section Registry
 
 /// Open a registry key.
+// @{test-reg.lua} shows reading a registry value and enumerating subkeys.
 // @param path the full registry key
 // e.g `[[HKEY\_LOCAL\_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion]]`
 // @param writeable true if you want to set values
