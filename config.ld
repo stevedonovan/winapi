@@ -4,6 +4,7 @@ output = "api"
 title = "Winapi documentation"
 project = "winapi"
 readme = "readme.md"
+one = true
 -- no_summary = true
 examples = {'examples', exclude = {'examples/slow.lua'}}
 description = [[

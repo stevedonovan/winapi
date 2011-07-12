@@ -219,7 +219,7 @@ To get all the current processes:
 
 ## Drive and Directory Operations
 
-There are functions for querying the filesystem: @{get_logical_drives()} returns all available drives (in 'D:\\' format) and @{get_drive_type()} will tell you whether these drives are fixed, remote, removable, etc. @{get_disk_free_space()} will return the space used and the space available in kB as two results.
+There are functions for querying the filesystem: @{get_logical_drives} returns all available drives (in 'D:\\' format) and @{get_drive_type} will tell you whether these drives are fixed, remote, removable, etc. @{get_disk_free_space} will return the space used and the space available in kB as two results.
 
     require 'winapi'
 
