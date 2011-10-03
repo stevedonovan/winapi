@@ -180,6 +180,23 @@ void make_message_window() {
   }
 }
 
+static HANDLE hLuaMutex = NULL;
+static int mutex_locked;
+
+void lock_mutex() {
+  if (hLuaMutex == NULL) {
+    hLuaMutex = CreateMutex(NULL,FALSE,NULL);
+  }
+  WaitForSingleObject(hLuaMutex,INFINITE);
+  mutex_locked = 1;
+}
+
+void release_mutex() {
+  if (mutex_locked) {
+    mutex_locked = 0;
+    ReleaseMutex(hLuaMutex);
+  }
+}
 
 // this is a useful function to call a Lua function within an exclusive
 // mutex lock. There are two parameters:
@@ -201,12 +218,8 @@ void make_message_window() {
 // @param discard if 1, then remove the reference after calling
 // @function call_lua
 BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
-  static HANDLE hLuaMutex = NULL;
   BOOL res;
-  if (hLuaMutex == NULL) {
-    hLuaMutex = CreateMutex(NULL,FALSE,NULL);
-  }
-  WaitForSingleObject(hLuaMutex,INFINITE);
+  lock_mutex();
   if (s_use_mutex) {
     res = call_lua_direct(L,ref,idx,text,discard);
   } else {
@@ -219,7 +232,7 @@ BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
     PostMessage(hMessageWin,MY_INTERNAL_LUA_MESSAGE,0,(LPARAM)parms);
     res = FALSE; // for now
   }
-  ReleaseMutex(hLuaMutex);
+  release_mutex();
   return res;
 }
 

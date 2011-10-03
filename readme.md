@@ -42,16 +42,16 @@ If the command is invalid, then you will get an error message instead:
     > = winapi.spawn_process 'frodo'
     nil     The system cannot find the file specified.
 
-This is what @{execute} does under the hood, but doing it explicitly gives you more control.  For instance, the @{Process.wait} method of the process object can take an optional time-out parameter; if you wait too long for the process, it will return the process object and the string 'TIMEOUT'.
+This is what @{execute} does under the hood, but doing it explicitly gives you more control.  For instance, the @{Process:wait} method of the process object can take an optional time-out parameter; if you wait too long for the process, it will return the process object and the string 'TIMEOUT'.
 
     local _,status = proc:wait(500)
     if status == 'TIMEOUT' then
       proc:kill()
     end
 
-The file object is unfortunately not a Lua file object, since it is not possible to _portably_ re-use the existing Lua implementation without copying large chunks of `liolib.c` into this library. So @{File.read} grabs what's available, unbuffered. But I feel that it's easy enough for Lua code to parse the result into separate lines, if needed.
+The file object is unfortunately not a Lua file object, since it is not possible to _portably_ re-use the existing Lua implementation without copying large chunks of `liolib.c` into this library. So @{File:read} grabs what's available, unbuffered. But I feel that it's easy enough for Lua code to parse the result into separate lines, if needed.
 
-Having a @{File.write} method means that, yes, you can capture an interactive process, send it commands and read the result. The caveat is that this process must not buffer standard output. For instance, launch interactive Lua with a command-line like this:
+Having a @{File:write} method means that, yes, you can capture an interactive process, send it commands and read the result. The caveat is that this process must not buffer standard output. For instance, launch interactive Lua with a command-line like this:
 
     > proc,file = winapi.spawn_process [[lua -e "io.stdout:setvbuf('no')" -i]]
     > = file:read()  -- always read the program banner first!
@@ -79,7 +79,7 @@ Note that reading the result also returns the prompt '>', which isn't so obvious
     42
     >>>
 
-This kind of interactive process capture is fine for a console application, but @{File.read} is blocking and will freeze any GUI program. For this, you use @{File.read_async} which returns the result through a callback.
+This kind of interactive process capture is fine for a console application, but @{File:read} is blocking and will freeze any GUI program. For this, you use @{File:read_async} which returns the result through a callback.
 
     > file:write '40+2\n'
     > file:read_async(function(s) print('++',s) end)
@@ -95,7 +95,7 @@ The process object can provide more useful information:
     > = proc:run_times()
     0       31
 
-@{Process.get_working_size} gives you a lower and an upper bound on the process memory in kB; @{Process.get_run_times} gives you the time (in milliseconds) spent in the user process and in the kernel. So the time to calculate `40+2` twice is too fast to even register, and it has only spent 31 msec in the system.
+@{Process:get_working_size} gives you a lower and an upper bound on the process memory in kB; @{Process:get_run_times} gives you the time (in milliseconds) spent in the user process and in the kernel. So the time to calculate `40+2` twice is too fast to even register, and it has only spent 31 msec in the system.
 
 It is possible to wait on more than one process at a time. Consider this simple time-wasting script:
 
@@ -111,7 +111,7 @@ It takes me 0.743 seconds to do this, with stock Lua 5.1. But running two such s
     winapi.wait_for_processes(P,true)
     print(os.clock() - t)
 
-So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long. The second parameter means 'wait for all'; like the @{Process.wait} method, it has an optional timeout parameter.
+So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long. The second parameter means 'wait for all'; like the @{Process:wait} method, it has an optional timeout parameter.
 
 ## Working with Windows
 
@@ -144,7 +144,7 @@ So the equivalent of the old DOS command `title` would here be:
 
     winapi.foreground_window():set_text 'My new title'
 
-Any top-level window will contain child windows. For example, Notepad has a simple structure revealed by @{Window.enum_children}:
+Any top-level window will contain child windows. For example, Notepad has a simple structure revealed by @{Window:enum_children}:
 
     > w = winapi.find_window_match 'Notepad'
     > = w
@@ -203,7 +203,7 @@ When run in SciTE, it successfully puts a little bit of Greek in the title bar.
     > = p:get_process_name(true)
     C:\WINDOWS\system32\cmd.exe
 
-(Note that the @{Process.get_process_name} method can optionally give you the full path to the process.)
+(Note that the @{Process:get_process_name} method can optionally give you the full path to the process.)
 
 To get all the current processes:
 
@@ -327,7 +327,7 @@ Life is more complicated on Windows (as usual) but with a little bit of help fro
 
     winapi.sleep(-1)
 
-Like timers and file notifications, this server runs in its own thread so we have to put the main thread to sleep.  This function is passed a callback and a pipe name; pipe names must look like '\\\\.\\pipe\\NAME' and the default name is '\\\\.\\pipe\\luawinapi'. The callback receives a file object - in this case we use @{File.read_async} to play nice with other Lua threads. Multiple clients can have open connections in this way, up to the number of available pipes.
+Like timers and file notifications, this server runs in its own thread so we have to put the main thread to sleep.  This function is passed a callback and a pipe name; pipe names must look like '\\\\.\\pipe\\NAME' and the default name is '\\\\.\\pipe\\luawinapi'. The callback receives a file object - in this case we use @{File:read_async} to play nice with other Lua threads. Multiple clients can have open connections in this way, up to the number of available pipes.
 
 The client can connect in a very straightforward way:
 
@@ -342,9 +342,9 @@ and our server will say:
     ]
     []
 
-(Note that @{File.read} receives an _empty string_ when the handle is closed.)
+(Note that @{File:read} receives an _empty string_ when the handle is closed.)
 
-However, we can't push 'standard' I/O very far here. So there is also a corresponding @{open_pipe} which returns a file object, both readable and writeable. It's probably best to think of it as a kind of socket; each call to @{File.read} and @{File.write} are regarded as receive/send events.
+However, we can't push 'standard' I/O very far here. So there is also a corresponding @{open_pipe} which returns a file object, both readable and writeable. It's probably best to think of it as a kind of socket; each call to @{File:read} and @{File:write} are regarded as receive/send events.
 
 The server can do something to the received string and pass it back:
 

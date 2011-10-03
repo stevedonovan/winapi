@@ -13,6 +13,8 @@ void throw_error(lua_State *L, LPCSTR msg);
 BOOL call_lua_direct(lua_State *L, Ref ref, int idx, LPCSTR text, int discard);
 void make_message_window();
 BOOL call_lua(lua_State *L, Ref ref, int idx, LPCSTR text, int discard);
+void lock_mutex();
+void release_mutex();
 
 // encoding and converting text
 void set_encoding(int e);

@@ -1,4 +1,4 @@
--- this shows how @{Process.wait_for_input_idle} means that there's no need for
+-- this shows how @{Process:wait_for_input_idle} means that there's no need for
 -- a random wait until an application is ready to go.
 -- Note, if we use @{spawn_process} then the window is initially invisible,
 -- and needs to be shown explicitly.

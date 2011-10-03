@@ -271,8 +271,14 @@ class Window {
   // know the class of the top level window.
   // @function get_class_name
   def get_class_name() {
-    GetClassNameW(this->hwnd,wbuff,sizeof(wbuff));
-    return push_wstring(L,wbuff);
+    static char buff[1024];
+    int n = GetClassName(this->hwnd,buff,sizeof(buff));
+    if (n > 0) {
+      lua_pushstring(L,buff);
+      return 1;
+    } else {
+      return push_error(L);
+    }
   }
 
   /// bring this window to the foreground.
@@ -489,9 +495,25 @@ def tile_windows(Window parent, Boolean horiz, Value kids, Value bounds) {
 /// sleep and use no processing time.
 // @param millisec sleep period
 // @function sleep
-def sleep(Int millisec) {
+def sleep(Int millisec,Boolean lock) {
+  if (lock) {
+    release_mutex();
+  }
   Sleep(millisec);
+  if (lock) {
+    lock_mutex();
+  }
   return 0;
+}
+
+def locked_eval(Value fn, Value arg) {
+  release_mutex();
+  lock_mutex();
+  lua_pushvalue(L,fn);
+  lua_pushvalue(L,arg);
+  lua_pcall(L,1,1,0);
+  lua_pushvalue(L,-1);
+  return 1;
 }
 
 /// show a message box.
@@ -894,7 +916,7 @@ void lcb_free(void *data) {
   release_ref(lcb->L,lcb->callback);
 }
 
-/// Thread object. This is returned by the @{File.read_async} method and the @{make_timer},
+/// Thread object. This is returned by the @{File:read_async} method and the @{make_timer},
 // @{make_pipe_server} and @{watch_for_file_changes} functions. Useful to kill a thread
 // and free associated resources.
 // @type Thread
