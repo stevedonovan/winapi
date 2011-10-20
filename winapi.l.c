@@ -643,9 +643,14 @@ class Process {
     } else {
       this->pid = pid;
       this->hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
+                                  PROCESS_VM_READ | PROCESS_TERMINATE,
+                                  FALSE, pid );
+      if (!this->hProcess) {
+        this->hProcess = OpenProcess(PROCESS_QUERY_INFORMATION |
                                   PROCESS_VM_READ,
                                   FALSE, pid );
       }
+    }
   }
 
   /// get the name of the process.
