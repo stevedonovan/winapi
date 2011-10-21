@@ -672,6 +672,13 @@ class Process {
       return push_error(L);
     }
   }
+  
+  /// get the the pid of the process.
+  // @function get_pid
+  def get_pid() {
+    lua_pushnumber(L, this->pid);
+	return 1;
+  }
 
   /// kill the process.
   // @{test-spawn.lua} kills a launched process after a certain amount of output.
