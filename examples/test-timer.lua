@@ -6,7 +6,6 @@ t1 = winapi.make_timer(500,function()
 end)
 local k = 1
 t2 = winapi.make_timer(400,function()
-  print (t1)
   k = k + 1
   if k > 5 then
     t1:kill() -- kill the first timer
@@ -18,4 +17,6 @@ winapi.make_timer(1000,function()
   print 'doo'
   if not t2 then os.exit(0) end -- we all finish
 end)
+
+-- sleep forever...
 winapi.sleep(-1)

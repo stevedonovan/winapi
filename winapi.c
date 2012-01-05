@@ -315,14 +315,14 @@ static void Window_ctor(lua_State *L, Window *this, HWND h) {
 
   /// resize or move a window.
   // see [API](http://msdn.microsoft.com/en-us/library/windows/desktop/ms633545%28v=vs.85%29.aspx)
-  // @param w window handle to insert after, or one of:
-  //  HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOP (default), HWND_TOPMOST
-  // @param x0 left (ignore if flags has SWP_NOMOVE)
+  // @param w window _handle_ to insert after, or one of:
+  //  WINWIN_BOTTOM, WIN_NOTOPMOST, WIN_TOP (default), WIN_TOPMOST
+  // @param x0 left (ignore if flags has WIN_NOMOVE)
   // @param y0 top
-  // @param w width (ignore if flags has SWP_NOSIZE)
+  // @param w width (ignore if flags has WIN_NOSIZE)
   // @param h height
   // @param flags one of
-  // SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW (default), SWP_NOZORDER
+  // WIN_NOACTIVATE, WIN_NOMOVE, WIN_NOSIZE, WIN_SHOWWINDOW (default), WIN_NOZORDER
   static int l_Window_set_pos(lua_State *L) {
     Window *this = Window_arg(L,1);
     int wafter = luaL_optinteger(L,2,WIN_TOP);
