@@ -117,17 +117,17 @@ So my i3 is effectively a two-processor machine; four such processes take 1.325 
 
 The ${Windows} object provides methods for querying window properties. For instance, the desktop window fills the whole screen, so to find out the screen dimensions is straightforward:
 
-    > = winapi.desktop_window():get_bounds()
+    > = winapi.get_desktop_window():get_bounds()
     1600    900
 
 Finding other windows is best done by iterating over all top-level windows and checking them for some desired property; (@{find_window} is provided for completeness, but you really have to provide the exact window caption for the second parameter.)
 
 @{find_all_windows} returns all windows matching some function. For convenience, two useful matchers are provided, @{make_name_matcher} and @{make_class_matcher}. Once you have a group of related windows, you can do fun things like tile them:
 
-    > t = winapi.find_all_windows(winapi.match_name '- SciTE')
+    > t = winapi.find_all_windows(winapi.make_name_matcher '- SciTE')
     > = #t
     2
-    > winapi.tile_windows(winapi.desktop_window(),false,t)
+    > winapi.tile_windows(winapi.get_desktop_window(),false,t)
 
 This call needs the parent window (we just use the desktop), whether to tile horizontally, and a table of window objects.  There is an optional fourth parameter, which is the bounds to use for the tiling, specified like so `{left=0,top=0,right=600,bottom=900}`.
 
@@ -137,12 +137,12 @@ With tiling and the ability to hide windows with `w:show(winapi.SW_HIDE)` it is 
 
 Every window has an associated text value. For top-level windows, this is the window caption:
 
-    > = winapi.foreground_window()
+    > = winapi.get_foreground_window()
     Command Prompt - lua -lwinapi
 
 So the equivalent of the old DOS command `title` would here be:
 
-    winapi.foreground_window():set_text 'My new title'
+    winapi.get_foreground_window():set_text 'My new title'
 
 Any top-level window will contain child windows. For example, Notepad has a simple structure revealed by @{Window:enum_children}:
 
@@ -166,19 +166,24 @@ Windows controls like the 'Edit' control interact with the unverse via messages.
 
 An entertaining way to automate some programs is to send virtual keystrokes to them. The function @{send_to_window} sends characters to the current foreground window:
 
-    > winapi.send_input '= 20 + 10\n'
+    > winapi.send_to_window '= 20 + 10\n'
     > = 20 + 10
     30
 
 After launching a window, you can make it the foreground window and send it text:
 
-    winapi.shell_exec(nil,'notepad')
-    winapi.sleep(100)
-    notew = winapi.find_window_match 'Untitled'
-    notew:set_foreground()
-    winapi.send_input 'Hello World!'
+    P = winapi.spawn_process 'notepad'
+    P:wait_for_input_idle()
+    w = winapi.find_window_match 'Untitled'
+    w:show()
+    w:set_foreground()
+    winapi.send_to_window 'hello dammit'
 
-The little sleep is important: it gives the other process a chance to get going, and to create a new window which we can promote.
+Waiting on the process is important: it gives the other process a chance to get going, and to create a new window which we can promote.
+
+## Working with Text Encoding
+
+Lua has internally no concept of text encoding; strings are sequences of bytes. This means that the string functions cannot generally give you the correct length of a UTF-8 encoded string, for instance. Internally, Windows uses UTF-16 and winapi gives you several options for passing and getting lua strings from Windows.
 
 An important point is that you can choose to use UTF-8 encoding with winapi. This little program shows how:
 
@@ -189,12 +194,33 @@ An important point is that you can choose to use UTF-8 encoding with winapi. Thi
 
 When run in SciTE, it successfully puts a little bit of Greek in the title bar.
 
+@{encode} can translate text explicitly between encodings; `winapi.enode(ein,eout,text)` where the encodings can be one of the `winapi.CP_ACP`, `winapi_UTF8` and `winapi_UTF16` constants.
+
+@{utf8_encode} will expand '#' two-byte Unicode hex constants:
+
+    local U = winapi.utf8_expand
+    txt = U '#03BB + #03BC + C'
+    print(txt)
+    print(U '#03BD')
+    ---> OUTPUT
+    λ + μ + C
+    ν
+
+You may work internally in UTF-8 and get a suitable _short file name_ for working with files in Lua.
+
+    name = winapi.short_path 'ελληνική.txt'
+    print(name)
+    local f,err = io.open(name,'w')
+    f:write 'a new file\n'
+    f:close()
+
+A filename with the correct Greek name appears in Explorer, and can be edited with Notepad.
 
 ## Working with Processes
 
 @{get_current_process} will give you a @{Process} object for the current program. It's also possible to get a process object from a program's window:
 
-    > w = winapi.foreground_window()
+    > w = winapi.get_foreground_window()
     > = w
     Command Prompt - lua -lwinapi
     > p = w:get_process()
@@ -210,7 +236,7 @@ To get all the current processes:
     pids = winapi.get_processes()
 
     for _,pid in ipairs(pids) do
-       local P = winapi.process(pid)
+       local P = winapi.process_from_id(pid)
        local name = P:get_process_name(true)
        if name then print(pid,name) end
        P:close()

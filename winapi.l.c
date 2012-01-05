@@ -133,6 +133,17 @@ def utf8_expand(Str text) {
 // forward reference to Process constructor
 static int push_new_Process(lua_State *L,Int pid, HANDLE ph);
 
+const int WIN_NOACTIVATE = (int)SWP_NOACTIVATE,
+  WIN_NOMOVE = (int)SWP_NOMOVE,
+  WIN_NOSIZE = (int)SWP_NOSIZE,
+  WIN_SHOWWINDOW = (int)SWP_SHOWWINDOW,
+  WIN_NOZORDER = (int)SWP_NOZORDER,
+  WIN_BOTTOM = (int)HWND_BOTTOM,
+  WIN_NOTOPMOST = (int)HWND_NOTOPMOST,
+  WIN_TOP = (int)HWND_TOP,
+  WIN_TOPMOST = (int)HWND_TOPMOST;
+
+
 /// a class representing a Window.
 // @type Window
 class Window {
@@ -226,6 +237,21 @@ class Window {
   // @function resize
   def resize(Int x0, Int y0, Int w, Int h) {
     MoveWindow(this->hwnd,x0,y0,w,h,TRUE);
+    return 0;
+  }
+
+  /// resize or move a window.
+  // see [API](http://msdn.microsoft.com/en-us/library/windows/desktop/ms633545%28v=vs.85%29.aspx)
+  // @param w window _handle_ to insert after, or one of:
+  //  WINWIN_BOTTOM, WIN_NOTOPMOST, WIN_TOP (default), WIN_TOPMOST
+  // @param x0 left (ignore if flags has WIN_NOMOVE)
+  // @param y0 top
+  // @param w width (ignore if flags has WIN_NOSIZE)
+  // @param h height
+  // @param flags one of
+  // WIN_NOACTIVATE, WIN_NOMOVE, WIN_NOSIZE, WIN_SHOWWINDOW (default), WIN_NOZORDER
+  def set_pos (Int wafter = WIN_TOP, Int x0, Int y0, Int w, Int h, Int flags = WIN_SHOWWINDOW) {
+    SetWindowPos(this->hwnd,(HWND)wafter,x0,y0,w,h,flags);
     return 0;
   }
 
@@ -672,7 +698,7 @@ class Process {
       return push_error(L);
     }
   }
-  
+
   /// get the the pid of the process.
   // @function get_pid
   def get_pid() {
@@ -1761,6 +1787,7 @@ The following constants are available:
 
 #define CP_UTF16 -1
 
+
 constants {
   CP_ACP,
   CP_UTF8,
@@ -1803,7 +1830,16 @@ constants {
   FILE_ACTION_REMOVED,
   FILE_ACTION_MODIFIED,
   FILE_ACTION_RENAMED_OLD_NAME,
-  FILE_ACTION_RENAMED_NEW_NAME
+  FILE_ACTION_RENAMED_NEW_NAME,
+  WIN_NOACTIVATE,
+  WIN_NOMOVE,
+  WIN_NOSIZE,
+  WIN_SHOWWINDOW,
+  WIN_NOZORDER,
+  WIN_BOTTOM,
+  WIN_NOTOPMOST,
+  WIN_TOP,
+  WIN_TOPMOST
 }
 
 }

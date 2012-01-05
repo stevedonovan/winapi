@@ -7,7 +7,7 @@ winapi.set_encoding(UTF8)
 
 local short = winapi.short_path
 local name = short 'ελληνική.txt'
---os.remove(name)
+os.remove(name)
 print(name)
 local f,err = io.open(name,'w')
 if not f then return print(err) end
