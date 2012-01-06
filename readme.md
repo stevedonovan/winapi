@@ -325,17 +325,42 @@ It is straightforward to create a timer. You could of course use @{sleep} but th
 
 Such callbacks can be made GUI-safe by first calling @{use_gui} which ensures that any callback is called in the main GUI thread.
 
-The basic rule for callbacks enforced by `winapi` is that only one may be active at a time; otherwise we would risk re-entering Lua using the same state. So be quick when responding to callbacks, since they effectively block Lua. For a console application, the best bet (after setting some timers and so forth) is just to sleep indefinitely:
+The basic rule for callbacks enforced by `winapi` is that only one may be active at a time; otherwise we would risk re-entering Lua on another thread, using the same Lua state. So be quick when responding to callbacks, since they effectively block Lua. For a console application, the best bet (after setting some timers and so forth) is just to sleep indefinitely:
 
     winapi.sleep(-1)
 
-To show what happens if you don't follow the rule:
+To show what happens in an interactive prompt if you don't follow this rule:
 
     > winapi.timer(500,function() end)
     > = 23
     nil     nil     return  23
 
 In short: completely messed!
+
+There is another option. @{sleep} takes an optional argument which makes it automatically unlock and lock the mutex:
+
+    while true do
+      winapi.sleep(200,true)
+      print 'gotcha'
+    end
+
+While we are sleeping, the mutex is unlocked and anybody can grab it, but afterwards we are locked.
+
+It's possible to read from the console asynchronously, which allows you to write servers which are responsive to interactive commands.
+
+    f = winapi.get_console()
+    f:read_async(function(line)
+      f:write(line)
+      if line:match '^quit' then
+        os.exit()
+      end
+    end)
+
+    winapi.sleep(-1)
+
+Please note that you will get the end-of-line characters as well.
+
+
 
 ## Reading from the Registry
 

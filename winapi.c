@@ -1480,6 +1480,50 @@ static void File_register (lua_State *L) {
 
 #line 1107 "winapi.l.c"
 
+/// open console i/o.
+// @return @{File}
+// @function get_console
+static int l_get_console(lua_State *L) {
+    HANDLE w = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE r = GetStdHandle(STD_INPUT_HANDLE);
+    return push_new_File(L,r,w);
+}
+
+/// open a serial port for reading and writing.
+// @param defn a string as used by the [mode command](http://technet.microsoft.com/en-us/library/cc732236%28WS.10%29.aspx)
+// @return @{File}
+static int l_open_serial(lua_State *L) {
+    const char *defn = luaL_checklstring(L,1,NULL);
+    #line 1120 "winapi.l.c"
+    DCB dcb = {0};
+    char port[20];
+    HANDLE hSerial;
+    char *p = defn, *q = port;
+    for (; *p != ' '; p++)
+        *q++ = *p;
+    *q = '\0';
+    printf("port '%s' '%s'\n",port,defn);
+    dcb.DCBlength = sizeof(dcb);
+    hSerial = CreateFile(port,GENERIC_READ | GENERIC_WRITE, 0, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (hSerial == INVALID_HANDLE_VALUE) {
+        printf("createfile\n");
+        return push_error(L);
+    }
+    GetCommState(hSerial,&dcb);
+    if (! BuildCommDCB(defn,&dcb)) {
+        printf("buildcomm\n");
+        CloseHandle(hSerial);
+        return push_error(L);
+    }
+    if (! SetCommState(hSerial,&dcb)) {
+        printf("setcomm\n");
+        CloseHandle(hSerial);
+        return push_error(L);
+    }
+    return push_new_File(L,hSerial,hSerial);
+}
+
 /// Launching processes.
 // @section Launch
 
@@ -1495,7 +1539,7 @@ static void File_register (lua_State *L) {
 static int l_setenv(lua_State *L) {
   const char *name = luaL_checklstring(L,1,NULL);
   const char *value = luaL_checklstring(L,2,NULL);
-  #line 1120 "winapi.l.c"
+  #line 1162 "winapi.l.c"
   WCHAR wname[256],wvalue[MAX_WPATH];
   return push_bool(L, SetEnvironmentVariableW(wconv(name),wconv(value)));
 }
@@ -1509,7 +1553,7 @@ static int l_setenv(lua_State *L) {
 static int l_spawn_process(lua_State *L) {
   const char *program = luaL_checklstring(L,1,NULL);
   const char *dir = lua_tostring(L,2);
-  #line 1131 "winapi.l.c"
+  #line 1173 "winapi.l.c"
   WCHAR wdir [MAX_WPATH];
   SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), 0, 0};
   SECURITY_DESCRIPTOR sd;
@@ -1608,7 +1652,7 @@ static void timer_thread(TimerData *data) { // background timer thread
 static int l_make_timer(lua_State *L) {
   int msec = luaL_checkinteger(L,1);
   int callback = 2;
-  #line 1227 "winapi.l.c"
+  #line 1269 "winapi.l.c"
   TimerData *data = (TimerData *)malloc(sizeof(TimerData));
   data->msec = msec;
   lcb_callback(data,L,callback);
@@ -1662,7 +1706,7 @@ static void pipe_server_thread(PipeServerParms *parms) {
 // @function open_pipe
 static int l_open_pipe(lua_State *L) {
   const char *pipename = luaL_optlstring(L,1,"\\\\.\\pipe\\luawinapi",NULL);
-  #line 1279 "winapi.l.c"
+  #line 1321 "winapi.l.c"
   HANDLE hPipe = CreateFile(
       pipename,
       GENERIC_READ |  // read and write access
@@ -1691,7 +1735,7 @@ static int l_open_pipe(lua_State *L) {
 static int l_make_pipe_server(lua_State *L) {
   int callback = 1;
   const char *pipename = luaL_optlstring(L,2,"\\\\.\\pipe\\luawinapi",NULL);
-  #line 1305 "winapi.l.c"
+  #line 1347 "winapi.l.c"
   PipeServerParms *psp = (PipeServerParms*)malloc(sizeof(PipeServerParms));
   lcb_callback(psp,L,callback);
   psp->pipename = pipename;
@@ -1750,7 +1794,7 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
 // @function short_path
 static int l_short_path(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
-  #line 1362 "winapi.l.c"
+  #line 1404 "winapi.l.c"
   WCHAR wpath[MAX_WPATH];
   HANDLE hFile;
   int res;
@@ -1836,7 +1880,7 @@ static int l_get_logical_drives(lua_State *L) {
 // @function get_drive_type
 static int l_get_drive_type(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1446 "winapi.l.c"
+  #line 1488 "winapi.l.c"
   UINT res = GetDriveType(root);
   const char *type;
   switch(res) {
@@ -1859,7 +1903,7 @@ static int l_get_drive_type(lua_State *L) {
 // @function get_disk_free_space
 static int l_get_disk_free_space(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1467 "winapi.l.c"
+  #line 1509 "winapi.l.c"
   ULARGE_INTEGER freebytes, totalbytes;
   if (! GetDiskFreeSpaceEx(root,&freebytes,&totalbytes,NULL)) {
     return push_error(L);
@@ -1875,7 +1919,7 @@ static int l_get_disk_free_space(lua_State *L) {
 // @function get_disk_network_name
 static int l_get_disk_network_name(lua_State *L) {
   const char *root = luaL_checklstring(L,1,NULL);
-  #line 1481 "winapi.l.c"
+  #line 1523 "winapi.l.c"
   DWORD size = sizeof(wbuff);
   DWORD res = WNetGetConnectionW(wstring(root),wbuff,&size);
   if (res == NO_ERROR) {
@@ -1911,7 +1955,7 @@ static int l_watch_for_file_changes(lua_State *L) {
   int how = luaL_checkinteger(L,2);
   int subdirs = lua_toboolean(L,3);
   int callback = 4;
-  #line 1512 "winapi.l.c"
+  #line 1554 "winapi.l.c"
   FileChangeParms *fc = (FileChangeParms*)malloc(sizeof(FileChangeParms));
   lcb_callback(fc,L,callback);
   fc->how = how;
@@ -1933,7 +1977,7 @@ static int l_watch_for_file_changes(lua_State *L) {
 
 /// Class representing Windows registry keys.
 // @type Regkey
-#line 1536 "winapi.l.c"
+#line 1578 "winapi.l.c"
 
 typedef struct {
   HKEY key;
@@ -1961,7 +2005,7 @@ static int push_new_Regkey(lua_State *L,HKEY k) {
 
 
 static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
-    #line 1537 "winapi.l.c"
+    #line 1579 "winapi.l.c"
     this->key = k;
   }
 
@@ -1973,7 +2017,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_checklstring(L,2,NULL);
     const char *val = luaL_checklstring(L,3,NULL);
-    #line 1545 "winapi.l.c"
+    #line 1587 "winapi.l.c"
     return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) == ERROR_SUCCESS);
   }
 
@@ -1985,7 +2029,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   static int l_Regkey_get_value(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_optlstring(L,2,"",NULL);
-    #line 1554 "winapi.l.c"
+    #line 1596 "winapi.l.c"
     DWORD type,size = sizeof(wbuff);
     if (RegQueryValueExW(this->key,wstring(name),0,&type,(void *)wbuff,&size) != ERROR_SUCCESS) {
       return push_error(L);
@@ -2007,7 +2051,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function get_keys
   static int l_Regkey_get_keys(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1574 "winapi.l.c"
+    #line 1616 "winapi.l.c"
     int i = 0;
     LONG res;
     DWORD size;
@@ -2033,7 +2077,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function close
   static int l_Regkey_close(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1598 "winapi.l.c"
+    #line 1640 "winapi.l.c"
     RegCloseKey(this->key);
     this->key = NULL;
     return 0;
@@ -2045,19 +2089,19 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function flush
   static int l_Regkey_flush(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1608 "winapi.l.c"
+    #line 1650 "winapi.l.c"
     return push_bool(L,RegFlushKey(this->key));
   }
 
   static int l_Regkey___gc(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1612 "winapi.l.c"
+    #line 1654 "winapi.l.c"
     if (this->key != NULL)
       RegCloseKey(this->key);
     return 0;
   }
 
-#line 1617 "winapi.l.c"
+#line 1659 "winapi.l.c"
 
 static const struct luaL_reg Regkey_methods [] = {
      {"set_value",l_Regkey_set_value},
@@ -2078,7 +2122,7 @@ static void Regkey_register (lua_State *L) {
 }
 
 
-#line 1619 "winapi.l.c"
+#line 1661 "winapi.l.c"
 
 /// Registry Functions.
 // @section Registry
@@ -2093,7 +2137,7 @@ static void Regkey_register (lua_State *L) {
 static int l_open_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
   int writeable = lua_toboolean(L,2);
-  #line 1630 "winapi.l.c"
+  #line 1672 "winapi.l.c"
   HKEY hKey;
   DWORD access;
   char kbuff[1024];
@@ -2115,7 +2159,7 @@ static int l_open_reg_key(lua_State *L) {
 // @function create_reg_key
 static int l_create_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
-  #line 1650 "winapi.l.c"
+  #line 1692 "winapi.l.c"
   char kbuff[1024];
   HKEY hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
@@ -2128,7 +2172,7 @@ static int l_create_reg_key(lua_State *L) {
   }
 }
 
-#line 1733 "winapi.l.c"
+#line 1775 "winapi.l.c"
 static const char *lua_code_block = ""\
   "function winapi.execute(cmd,unicode)\n"\
   "  local comspec = os.getenv('COMSPEC')\n"\
@@ -2207,7 +2251,7 @@ static void load_lua_code (lua_State *L) {
 
 
 
-#line 1736 "winapi.l.c"
+#line 1778 "winapi.l.c"
 
 
 /*** Constants.
@@ -2257,10 +2301,10 @@ The following constants are available:
  * FILE\_ACTION\_RENAMED\_NEW\_NAME
 
  @section constants
- */#line 1783 "winapi.l.c"
+ */#line 1825 "winapi.l.c"
 
 
- #line 1785 "winapi.l.c"
+ #line 1827 "winapi.l.c"
 
  /// useful Windows API constants
  // @table constants
@@ -2268,7 +2312,7 @@ The following constants are available:
 #define CP_UTF16 -1
 
 
-#line 1843 "winapi.l.c"
+#line 1885 "winapi.l.c"
 static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,CP_ACP); lua_setfield(L,-2,"CP_ACP");
  lua_pushinteger(L,CP_UTF8); lua_setfield(L,-2,"CP_UTF8");
@@ -2323,7 +2367,7 @@ static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,WIN_TOPMOST); lua_setfield(L,-2,"WIN_TOPMOST");
 }
 
-#line 1845 "winapi.l.c"
+#line 1887 "winapi.l.c"
 static const luaL_reg winapi_funs[] = {
        {"set_encoding",l_set_encoding},
    {"get_encoding",l_get_encoding},
@@ -2351,6 +2395,8 @@ static const luaL_reg winapi_funs[] = {
    {"get_current_process",l_get_current_process},
    {"get_processes",l_get_processes},
    {"wait_for_processes",l_wait_for_processes},
+   {"get_console",l_get_console},
+   {"open_serial",l_open_serial},
    {"setenv",l_setenv},
    {"spawn_process",l_spawn_process},
    {"make_timer",l_make_timer},
