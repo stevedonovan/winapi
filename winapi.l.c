@@ -1120,7 +1120,8 @@ def open_serial(Str defn) {
     DCB dcb = {0};
     char port[20];
     HANDLE hSerial;
-    char *p = defn, *q = port;
+    const char *p = defn;
+    char *q = port;
     for (; *p != ' '; p++)
         *q++ = *p;
     *q = '\0';

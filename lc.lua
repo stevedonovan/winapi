@@ -72,16 +72,26 @@ local preamble = [[
 #else
 #define EXPORT
 #endif
+#if LUA_VERSION_NUM > 501
+#define lua_objlen lua_rawlen
+#endif
 ]]
 
 local finis = [[
-static const luaL_reg $(cname)_funs[] = {
+static const luaL_Reg $(cname)_funs[] = {
     $(funs)
     {NULL,NULL}
 };
 
 EXPORT int luaopen_$(cname) (lua_State *L) {
-    luaL_register (L,"$(name)",$(cname)_funs);
+#if LUA_VERSION_NUM > 501
+    lua_newtable(L);
+    luaL_setfuncs (L,$(cname)_funs,0);
+    lua_pushvalue(L,-1);
+    lua_setglobal(L,"$(cname)");
+#else
+    luaL_register(L,"$(cname)",$(cname)_funs);
+#endif
     $(finalizers)
     return 1;
 }
@@ -279,14 +289,18 @@ static int push_new_$(klass)(lua_State *L,$(fargs)) {
 
 local end_klass = [[
 
-static const struct luaL_reg $(klass)_methods [] = {
+static const struct luaL_Reg $(klass)_methods [] = {
   $(methods)
   {NULL, NULL}  /* sentinel */
 };
 
 static void $(klass)_register (lua_State *L) {
   luaL_newmetatable(L,$(klass)_MT);
+#if LUA_VERSION_NUM > 501
+  luaL_setfuncs(L,$(klass)_methods,0);
+#else
   luaL_register(L,NULL,$(klass)_methods);
+#endif
   lua_pushvalue(L,-1);
   lua_setfield(L,-2,"__index");
   lua_pop(L,1);
