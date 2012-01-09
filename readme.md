@@ -196,7 +196,7 @@ When run in SciTE, it successfully puts a little bit of Greek in the title bar.
 
 @{encode} can translate text explicitly between encodings; `winapi.enode(ein,eout,text)` where the encodings can be one of the `winapi.CP_ACP`, `winapi_UTF8` and `winapi_UTF16` constants.
 
-@{utf8_encode} will expand '#' two-byte Unicode hex constants:
+@{utf8_expand} will expand '#' two-byte Unicode hex constants:
 
     local U = winapi.utf8_expand
     txt = U '#03BB + #03BC + C'
