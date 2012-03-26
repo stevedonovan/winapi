@@ -518,6 +518,8 @@ def tile_windows(Window parent, Boolean horiz, Value kids, Value bounds) {
 /// Miscellaneous functions.
 // @section miscellaneous
 
+static int push_new_File(lua_State *L,HANDLE hread, HANDLE hwrite);
+
 /// sleep and use no processing time.
 // @param millisec sleep period
 // @function sleep
@@ -654,6 +656,51 @@ def get_clipboard() {
   CloseClipboard();
   return 1;
 }
+
+/// open console i/o.
+// @return @{File}
+// @function get_console
+def get_console() {
+    HANDLE w = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE r = GetStdHandle(STD_INPUT_HANDLE);
+    return push_new_File(L,r,w);
+}
+
+/// open a serial port for reading and writing.
+// @param defn a string as used by the [mode command](http://technet.microsoft.com/en-us/library/cc732236%28WS.10%29.aspx)
+// @return @{File}
+// @function open_serial
+def open_serial(Str defn) {
+    DCB dcb = {0};
+    char port[20];
+    HANDLE hSerial;
+    const char *p = defn;
+    char *q = port;
+    for (; *p != ' '; p++)
+        *q++ = *p;
+    *q = '\0';
+    printf("port '%s' '%s'\n",port,defn);
+    dcb.DCBlength = sizeof(dcb);
+    hSerial = CreateFile(port,GENERIC_READ | GENERIC_WRITE, 0, 0,
+        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+    if (hSerial == INVALID_HANDLE_VALUE) {
+        printf("createfile\n");
+        return push_error(L);
+    }
+    GetCommState(hSerial,&dcb);
+    if (! BuildCommDCB(defn,&dcb)) {
+        printf("buildcomm\n");
+        CloseHandle(hSerial);
+        return push_error(L);
+    }
+    if (! SetCommState(hSerial,&dcb)) {
+        printf("setcomm\n");
+        CloseHandle(hSerial);
+        return push_error(L);
+    }
+    return push_new_File(L,hSerial,hSerial);
+}
+
 
 /// A class representing a Windows process.
 // this example was [helpful](http://msdn.microsoft.com/en-us/library/ms682623%28VS.85%29.aspx)
@@ -1104,48 +1151,6 @@ class File {
   }
 }
 
-/// open console i/o.
-// @return @{File}
-// @function get_console
-def get_console() {
-    HANDLE w = GetStdHandle(STD_OUTPUT_HANDLE);
-    HANDLE r = GetStdHandle(STD_INPUT_HANDLE);
-    return push_new_File(L,r,w);
-}
-
-/// open a serial port for reading and writing.
-// @param defn a string as used by the [mode command](http://technet.microsoft.com/en-us/library/cc732236%28WS.10%29.aspx)
-// @return @{File}
-def open_serial(Str defn) {
-    DCB dcb = {0};
-    char port[20];
-    HANDLE hSerial;
-    const char *p = defn;
-    char *q = port;
-    for (; *p != ' '; p++)
-        *q++ = *p;
-    *q = '\0';
-    printf("port '%s' '%s'\n",port,defn);
-    dcb.DCBlength = sizeof(dcb);
-    hSerial = CreateFile(port,GENERIC_READ | GENERIC_WRITE, 0, 0,
-        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-    if (hSerial == INVALID_HANDLE_VALUE) {
-        printf("createfile\n");
-        return push_error(L);
-    }
-    GetCommState(hSerial,&dcb);
-    if (! BuildCommDCB(defn,&dcb)) {
-        printf("buildcomm\n");
-        CloseHandle(hSerial);
-        return push_error(L);
-    }
-    if (! SetCommState(hSerial,&dcb)) {
-        printf("setcomm\n");
-        CloseHandle(hSerial);
-        return push_error(L);
-    }
-    return push_new_File(L,hSerial,hSerial);
-}
 
 /// Launching processes.
 // @section Launch

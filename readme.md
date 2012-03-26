@@ -362,6 +362,10 @@ Please note that you will get the end-of-line characters as well.
 
 
 
+
+
+
+
 ## Reading from the Registry
 
 ## Pipe Server
