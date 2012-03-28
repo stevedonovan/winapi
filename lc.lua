@@ -211,6 +211,14 @@ M.define('lua',function(get)
     return out
 end)
 
+M.define('initial',function(get)
+    local name = get:name()
+    append(module.finalizers,name)
+    get:expecting '{'
+    local body = tostring(get:upto '}')
+    return ('int %s(lua_State *L) {\n%s}\n'):format(name,body)
+end)
+
 typedefs = [[
 typedef const char *Str;
 typedef const char *StrNil;

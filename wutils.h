@@ -1,6 +1,9 @@
 #ifndef WUTILS_H
 #define WUTILS_H
 typedef int Ref;
+
+extern int mutex_locked;
+
 Ref make_ref(lua_State *L, int idx);
 void release_ref(lua_State *L, Ref ref);
 int push_ref(lua_State *L, Ref ref);
@@ -15,6 +18,7 @@ void make_message_window();
 BOOL call_lua(lua_State *L, Ref ref, int idx, LPCSTR text, int discard);
 void lock_mutex();
 void release_mutex();
+void wait_mutex();
 
 // encoding and converting text
 void set_encoding(int e);

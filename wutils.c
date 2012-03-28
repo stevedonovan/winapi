@@ -181,7 +181,7 @@ void make_message_window() {
 }
 
 static HANDLE hLuaMutex = NULL;
-static int mutex_locked;
+int mutex_locked;
 
 void lock_mutex() {
   if (hLuaMutex == NULL) {
@@ -196,6 +196,11 @@ void release_mutex() {
     mutex_locked = 0;
     ReleaseMutex(hLuaMutex);
   }
+}
+
+void wait_mutex() {
+  lock_mutex();
+  release_mutex();
 }
 
 // this is a useful function to call a Lua function within an exclusive
