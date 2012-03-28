@@ -523,14 +523,10 @@ static int push_new_File(lua_State *L,HANDLE hread, HANDLE hwrite);
 /// sleep and use no processing time.
 // @param millisec sleep period
 // @function sleep
-def sleep(Int millisec,Boolean lock) {
-  if (lock) {
-    release_mutex();
-  }
+def sleep(Int millisec) {
+  release_mutex();
   Sleep(millisec);
-  if (lock) {
-    lock_mutex();
-  }
+  lock_mutex();
   return 0;
 }
 
@@ -689,18 +685,73 @@ def open_serial(Str defn) {
     }
     GetCommState(hSerial,&dcb);
     if (! BuildCommDCB(defn,&dcb)) {
-        printf("buildcomm\n");
+        fprintf(stderr,"buildcomm error:\n");
         CloseHandle(hSerial);
         return push_error(L);
     }
     if (! SetCommState(hSerial,&dcb)) {
-        printf("setcomm\n");
+        fprintf(stderr,"setcomm error:\n");
         CloseHandle(hSerial);
         return push_error(L);
     }
     return push_new_File(L,hSerial,hSerial);
 }
 
+static int push_wait_result(lua_State *L, DWORD res) {
+    if (res == WAIT_OBJECT_0) {
+        lua_pushvalue(L,1);
+        lua_pushliteral(L,"OK");
+        return 2;
+    } else if (res == WAIT_TIMEOUT) {
+        lua_pushvalue(L,1);
+        lua_pushliteral(L,"TIMEOUT");
+        return 2;
+    } else {
+        return push_error(L);
+    }
+}
+
+static int push_wait(lua_State *L, HANDLE h, int timeout) {
+    DWORD res;
+    release_mutex();
+    res = WaitForSingleObject (h, timeout);
+    lock_mutex();
+    return push_wait_result(L,res);
+}
+
+class Event {
+    HANDLE hEvent;
+
+    constructor(Str name) {
+        this->hEvent = CreateEvent (NULL,0,0,name);
+    }
+
+    def wait(Int timeout=0) {
+        return push_wait(L,this->hEvent, TIMEOUT(timeout));
+    }
+
+    def signal() {
+        SetEvent(this->hEvent);
+        return 0;
+    }
+
+    def _gc() {
+        CloseHandle(this->hEvent);
+        return 0;
+    }
+}
+
+static int _event_count = 1;
+
+def event (Str name="?") {
+    if (strcmp(name,"?")==0) {
+        char buff[MAX_PATH];
+        sprintf(buff,"_event_%d",_event_count++);
+        return push_new_Event(L,buff);
+    } else {
+        return push_new_Event(L,name);
+    }
+}
 
 /// A class representing a Windows process.
 // this example was [helpful](http://msdn.microsoft.com/en-us/library/ms682623%28VS.85%29.aspx)
@@ -815,27 +866,13 @@ class Process {
     return 2;
   }
 
-  static int push_wait_result(lua_State *L, DWORD res) {
-    if (res == WAIT_OBJECT_0) {
-        lua_pushvalue(L,1);
-        lua_pushliteral(L,"OK");
-        return 2;
-    } else if (res == WAIT_TIMEOUT) {
-        lua_pushvalue(L,1);
-        lua_pushliteral(L,"TIMEOUT");
-        return 2;
-    } else {
-        return push_error(L);
-    }
-  }
-
   /// wait for this process to finish.
   // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
   // @return this process object
   // @return either "OK" or "TIMEOUT"
   // @function wait
   def wait(Int timeout = 0) {
-    return push_wait_result(L, WaitForSingleObject(this->hProcess, TIMEOUT(timeout)));
+    return push_wait(L,this->hProcess, TIMEOUT(timeout));
   }
 
   /// wait for this process to become idle and ready for input.
@@ -864,6 +901,7 @@ class Process {
   def close() {
     CloseHandle(this->hProcess);
     this->hProcess = NULL;
+    wait_mutex();
     return 0;
   }
 
@@ -875,6 +913,7 @@ class Process {
 }
 
 /// Working with processes.
+// @{readme.md.Creating_and_working_with_Processes}
 // @section Processes
 
 /// create a process object from the id.
@@ -938,13 +977,20 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
   if (n > MAXIMUM_WAIT_OBJECTS) {
     return push_error_msg(L,"cannot wait on so many processes");
   }
+
   for (i = 0; i < n; i++) {
     lua_rawgeti(L,processes,i+1);
     p = Process_arg(L,-1);
     handles[i] = p->hProcess;
   }
+  // allow callbacks to take place while we're waiting
+  //~ if (mutex_locked) {
+    //~ mutex_release();
+  //~ }
+  release_mutex();
   status = WaitForMultipleObjects(n, handles, all, TIMEOUT(timeout));
   status -= WAIT_OBJECT_0 + 1;
+  lock_mutex();
   if (status < 1 || status > n) {
     return push_error(L);
   } else {
@@ -1780,6 +1826,9 @@ end
 function winapi.dirs(mask,subdirs) return winapi.files(mask,subdirs,'D') end
 }
 
+initial init_mutex {
+    lock_mutex();
+}
 
 /*** Constants.
 The following constants are available:

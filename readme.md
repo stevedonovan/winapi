@@ -187,6 +187,7 @@ Lua has internally no concept of text encoding; strings are sequences of bytes. 
 
 An important point is that you can choose to use UTF-8 encoding with winapi. This little program shows how:
 
+    -- @{caption.lua}
     local W = require 'winapi'
     W.set_encoding(W.CP_UTF8)
     win = W.foreground_window()
@@ -208,6 +209,7 @@ When run in SciTE, it successfully puts a little bit of Greek in the title bar.
 
 You may work internally in UTF-8 and get a suitable _short file name_ for working with files in Lua.
 
+    -- @{testshort.lua}
     name = winapi.short_path 'ελληνική.txt'
     print(name)
     local f,err = io.open(name,'w')
@@ -247,6 +249,7 @@ To get all the current processes:
 
 There are functions for querying the filesystem: @{get_logical_drives} returns all available drives (in 'D:\\' format) and @{get_drive_type} will tell you whether these drives are fixed, remote, removable, etc. @{get_disk_free_space} will return the space used and the space available in kB as two results.
 
+    -- @{drives.lua}
     require 'winapi'
 
     drives = winapi.get_logical_drives()
@@ -359,10 +362,6 @@ It's possible to read from the console asynchronously, which allows you to write
     winapi.sleep(-1)
 
 Please note that you will get the end-of-line characters as well.
-
-
-
-
 
 
 
