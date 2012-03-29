@@ -711,46 +711,61 @@ static int push_wait_result(lua_State *L, DWORD res) {
     }
 }
 
-static int push_wait(lua_State *L, HANDLE h, int timeout) {
-    DWORD res;
-    release_mutex();
-    res = WaitForSingleObject (h, timeout);
-    lock_mutex();
-    return push_wait_result(L,res);
+static int wait_single(HANDLE h, int timeout) {
+  DWORD res;
+  release_mutex();
+  res = WaitForSingleObject (h, timeout);
+  lock_mutex();
+  return res;
 }
 
+static int push_wait(lua_State *L, HANDLE h, int timeout) {
+    return push_wait_result(L,wait_single(h,timeout));
+}
+
+static int push_wait_async(lua_State *L, HANDLE h, int timeout, int callback);
+
 class Event {
-    HANDLE hEvent;
+  HANDLE hEvent;
 
-    constructor(Str name) {
-        this->hEvent = CreateEvent (NULL,0,0,name);
-    }
+  constructor(HANDLE h) {
+    this->hEvent = h;
+  }
 
-    def wait(Int timeout=0) {
-        return push_wait(L,this->hEvent, TIMEOUT(timeout));
-    }
+  def wait(Int timeout=0) {
+    return push_wait(L,this->hEvent, TIMEOUT(timeout));
+  }
 
-    def signal() {
-        SetEvent(this->hEvent);
-        return 0;
-    }
+  def wait_async(Value callback, Int timeout = 0) {
+    return push_wait_async(L,this->hEvent, TIMEOUT(timeout), callback);
+  }
 
-    def _gc() {
-        CloseHandle(this->hEvent);
-        return 0;
-    }
+  def signal() {
+    SetEvent(this->hEvent);
+    return 0;
+  }
+
+  def __gc() {
+    CloseHandle(this->hEvent);
+    return 0;
+  }
 }
 
 static int _event_count = 1;
 
 def event (Str name="?") {
-    if (strcmp(name,"?")==0) {
-        char buff[MAX_PATH];
-        sprintf(buff,"_event_%d",_event_count++);
-        return push_new_Event(L,buff);
-    } else {
-        return push_new_Event(L,name);
-    }
+  HANDLE hEvent;
+  char buff[MAX_PATH];
+  if (strcmp(name,"?")==0) {
+    sprintf(buff,"_event_%d",_event_count++);
+    name = buff;
+  }
+  hEvent = CreateEvent (NULL,0,0,name);
+  if (hEvent == NULL) {
+    return push_error(L);
+  } else {
+    return push_new_Event(L,hEvent);
+  }
 }
 
 /// A class representing a Windows process.
@@ -875,6 +890,17 @@ class Process {
     return push_wait(L,this->hProcess, TIMEOUT(timeout));
   }
 
+  /// run callback when this process is finished.
+  // @param callback the callback
+  // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
+  // @return this process object
+  // @return either "OK" or "TIMEOUT"
+  // @function wait
+  def wait_async(Value callback, Int timeout = 0) {
+    return push_wait_async(L,this->hProcess, TIMEOUT(timeout), callback);
+  }
+
+
   /// wait for this process to become idle and ready for input.
   // Only makes sense for processes with windows (will return immediately if not)
   // @param timeout optional timeout in millisec
@@ -989,8 +1015,8 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
   //~ }
   release_mutex();
   status = WaitForMultipleObjects(n, handles, all, TIMEOUT(timeout));
-  status -= WAIT_OBJECT_0 + 1;
   lock_mutex();
+  status -= WAIT_OBJECT_0 + 1;
   if (status < 1 || status > n) {
     return push_error(L);
   } else {
@@ -1014,12 +1040,17 @@ typedef struct {
   callback_data_
 } LuaCallback, *PLuaCallback;
 
-void lcb_callback(void *lcb, lua_State *L, int idx) {
-  LuaCallback *data = (LuaCallback*) lcb;
+LuaCallback *lcb_callback(void *lcb, lua_State *L, int idx) {
+  LuaCallback *data;
+  if (lcb == NULL) {
+    lcb = malloc(sizeof(LuaCallback));
+  }
+  data = (LuaCallback*) lcb;
   data->L = L;
   data->callback = make_ref(L,idx);
   data->buf = NULL;
   data->handle = NULL;
+  return data;
 }
 
 BOOL lcb_call(void *data, int idx, Str text, int persist) {
@@ -1046,6 +1077,10 @@ void lcb_free(void *data) {
   }
   release_ref(lcb->L,lcb->callback);
 }
+
+#define lcb_buf(data) ((LuaCallback *)data)->buf
+#define lcb_bufsz(data) ((LuaCallback *)data)->bufsz
+#define lcb_handle(data) ((LuaCallback *)data)->handle
 
 /// Thread object. This is returned by the @{File:read_async} method and the @{make_timer},
 // @{make_pipe_server} and @{watch_for_file_changes} functions. Useful to kill a thread
@@ -1115,9 +1150,17 @@ int lcb_new_thread(TCB fun, void *data) {
   return push_new_Thread(lcb->L,lcb,thread);
 }
 
-#define lcb_buf(data) ((LuaCallback *)data)->buf
-#define lcb_bufsz(data) ((LuaCallback *)data)->bufsz
-#define lcb_handle(data) ((LuaCallback *)data)->handle
+static void handle_waiter (LuaCallback *lcb) {
+  DWORD res = wait_single(lcb->handle,lcb->bufsz);
+  lcb_call(lcb,0,res == WAIT_TIMEOUT ? "TIMEOUT" : "OK",0);
+}
+
+static int push_wait_async(lua_State *L, HANDLE h, int timeout, int callback) {
+  LuaCallback *lcb = lcb_callback(NULL,L,callback);
+  lcb->handle = h;
+  lcb->bufsz = timeout;
+  return lcb_new_thread((TCB)handle_waiter,lcb);
+}
 
 /// this represents a raw Windows file handle.
 // The write handle may be distinct from the read handle.
