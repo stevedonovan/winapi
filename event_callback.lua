@@ -1,9 +1,12 @@
 require 'winapi'
 
+fprintf = require 'pl.utils'.fprintf
+stderr = io.stderr
+
 e = winapi.event()
 
 winapi.make_timer(500,function()
-  print 'signal'
+  fprintf(stderr,'signal!\n')
   e:signal()
 end)
 
@@ -15,10 +18,10 @@ end
 --]]
 
 e:wait_async(function(s)
-  print ('finis',s)
+  fprintf (stderr,'finis %s\n',s)
   os.exit()
 end)
 
---print 'sleeping'
+fprintf(stderr,'sleeping\n')
 
 winapi.sleep(-1)
