@@ -180,28 +180,39 @@ void make_message_window() {
   }
 }
 
-static HANDLE hLuaMutex = NULL;
-int mutex_locked;
+static HANDLE hLuaMutex = NULL, hMutex = NULL;
+int mutex_locked = 0;
 
 void lock_mutex() {
-  if (hLuaMutex == NULL) {
-    hLuaMutex = CreateMutex(NULL,FALSE,NULL);
-  }
+  WaitForSingleObject(hMutex,INFINITE);
+//  fprintf(stderr,"locking %d\n",mutex_locked);
   WaitForSingleObject(hLuaMutex,INFINITE);
+//  fprintf(stderr,"locked\n");
   mutex_locked = 1;
+  ReleaseMutex(hMutex);
+}
+
+void setup_mutex() {
+  hLuaMutex = CreateMutex(NULL,FALSE,NULL);
+  hMutex = CreateMutex(NULL,FALSE,NULL);
+  lock_mutex();
 }
 
 void release_mutex() {
+  WaitForSingleObject(hMutex,INFINITE);
+//  fprintf(stderr,"releasing %d\n",mutex_locked);
   if (mutex_locked) {
     mutex_locked = 0;
     ReleaseMutex(hLuaMutex);
   }
+  ReleaseMutex(hMutex);
 }
 
 void wait_mutex() {
   lock_mutex();
   release_mutex();
 }
+
 
 // this is a useful function to call a Lua function within an exclusive
 // mutex lock. There are two parameters:

@@ -530,16 +530,6 @@ def sleep(Int millisec) {
   return 0;
 }
 
-def locked_eval(Value fn, Value arg) {
-  release_mutex();
-  lock_mutex();
-  lua_pushvalue(L,fn);
-  lua_pushvalue(L,arg);
-  lua_pcall(L,1,1,0);
-  lua_pushvalue(L,-1);
-  return 1;
-}
-
 /// show a message box.
 // @param caption for dialog
 // @param msg the message
@@ -927,7 +917,6 @@ class Process {
   def close() {
     CloseHandle(this->hProcess);
     this->hProcess = NULL;
-    wait_mutex();
     return 0;
   }
 
@@ -1009,10 +998,6 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
     p = Process_arg(L,-1);
     handles[i] = p->hProcess;
   }
-  // allow callbacks to take place while we're waiting
-  //~ if (mutex_locked) {
-    //~ mutex_release();
-  //~ }
   release_mutex();
   status = WaitForMultipleObjects(n, handles, all, TIMEOUT(timeout));
   lock_mutex();
@@ -1151,7 +1136,7 @@ int lcb_new_thread(TCB fun, void *data) {
 }
 
 static void handle_waiter (LuaCallback *lcb) {
-  DWORD res = wait_single(lcb->handle,lcb->bufsz);
+  DWORD res = WaitForSingleObject(lcb->handle,lcb->bufsz);
   lcb_call(lcb,0,res == WAIT_TIMEOUT ? "TIMEOUT" : "OK",0);
 }
 
@@ -1870,7 +1855,8 @@ function winapi.dirs(mask,subdirs) return winapi.files(mask,subdirs,'D') end
 }
 
 initial init_mutex {
-    lock_mutex();
+    setup_mutex();
+    return 0;
 }
 
 /*** Constants.

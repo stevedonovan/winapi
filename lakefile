@@ -4,3 +4,6 @@ c.shared{'winapi',src='winapi wutils',needs='lua',
   dynamic = true,
   strip = true
 }
+
+target('winapi.c',{'winapi.l.c'},'luam -C -llc winapi.l.c  1>winapi.c')
+
