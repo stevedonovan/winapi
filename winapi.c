@@ -1339,7 +1339,7 @@ static int l_wait_for_processes(lua_State *L) {
   release_mutex();
   status = WaitForMultipleObjects(n, handles, all, TIMEOUT(timeout));
   lock_mutex();
-  status -= WAIT_OBJECT_0 + 1;
+  status = status - WAIT_OBJECT_0 + 1;
   if (status < 1 || status > n) {
     return push_error(L);
   } else {
