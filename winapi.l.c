@@ -133,15 +133,15 @@ def utf8_expand(Str text) {
 // forward reference to Process constructor
 static int push_new_Process(lua_State *L,Int pid, HANDLE ph);
 
-const int WIN_NOACTIVATE = (int)SWP_NOACTIVATE,
-  WIN_NOMOVE = (int)SWP_NOMOVE,
-  WIN_NOSIZE = (int)SWP_NOSIZE,
-  WIN_SHOWWINDOW = (int)SWP_SHOWWINDOW,
-  WIN_NOZORDER = (int)SWP_NOZORDER,
-  WIN_BOTTOM = (int)HWND_BOTTOM,
-  WIN_NOTOPMOST = (int)HWND_NOTOPMOST,
-  WIN_TOP = (int)HWND_TOP,
-  WIN_TOPMOST = (int)HWND_TOPMOST;
+const DWORD_PTR WIN_NOACTIVATE = (DWORD_PTR)SWP_NOACTIVATE,
+  WIN_NOMOVE = (DWORD_PTR)SWP_NOMOVE,
+  WIN_NOSIZE = (DWORD_PTR)SWP_NOSIZE,
+  WIN_SHOWWINDOW = (DWORD_PTR)SWP_SHOWWINDOW,
+  WIN_NOZORDER = (DWORD_PTR)SWP_NOZORDER,
+  WIN_BOTTOM = (DWORD_PTR)HWND_BOTTOM,
+  WIN_NOTOPMOST = (DWORD_PTR)HWND_NOTOPMOST,
+  WIN_TOP = (DWORD_PTR)HWND_TOP,
+  WIN_TOPMOST = (DWORD_PTR)HWND_TOPMOST;
 
 
 /// a class representing a Window.
@@ -251,7 +251,7 @@ class Window {
   // @param flags one of
   // WIN_NOACTIVATE, WIN_NOMOVE, WIN_NOSIZE, WIN_SHOWWINDOW (default), WIN_NOZORDER
   def set_pos (Int wafter = WIN_TOP, Int x0, Int y0, Int w, Int h, Int flags = WIN_SHOWWINDOW) {
-    SetWindowPos(this->hwnd,(HWND)wafter,x0,y0,w,h,flags);
+    SetWindowPos(this->hwnd,(HWND)(DWORD_PTR)wafter,x0,y0,w,h,flags);
     return 0;
   }
 
@@ -318,7 +318,7 @@ class Window {
   // @function get_process
   def get_process() {
     DWORD pid;
-    DWORD res = GetWindowThreadProcessId(this->hwnd,&pid);
+    GetWindowThreadProcessId(this->hwnd,&pid);
     return push_new_Process(L,pid,NULL);
   }
 
@@ -647,9 +647,20 @@ def get_clipboard() {
 // @return @{File}
 // @function get_console
 def get_console() {
-    HANDLE w = GetStdHandle(STD_OUTPUT_HANDLE);
-    HANDLE r = GetStdHandle(STD_INPUT_HANDLE);
-    return push_new_File(L,r,w);
+  HANDLE w = GetStdHandle(STD_OUTPUT_HANDLE);
+  HANDLE r = GetStdHandle(STD_INPUT_HANDLE);
+  return push_new_File(L,r,w);
+}
+
+def pipe() {
+  HANDLE hRead, hWrite;
+  if (CreatePipe(&hRead,&hWrite,NULL,0) != 0) {
+    push_new_File(L,hRead,NULL);
+    push_new_File(L,NULL,hWrite);
+    return 2;
+  } else {
+    return push_error(L);
+  }
 }
 
 /// open a serial port for reading and writing.
@@ -657,48 +668,48 @@ def get_console() {
 // @return @{File}
 // @function open_serial
 def open_serial(Str defn) {
-    DCB dcb = {0};
-    char port[20];
-    HANDLE hSerial;
-    const char *p = defn;
-    char *q = port;
-    for (; *p != ' '; p++)
-        *q++ = *p;
-    *q = '\0';
-    printf("port '%s' '%s'\n",port,defn);
-    dcb.DCBlength = sizeof(dcb);
-    hSerial = CreateFile(port,GENERIC_READ | GENERIC_WRITE, 0, 0,
-        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
-    if (hSerial == INVALID_HANDLE_VALUE) {
-        printf("createfile\n");
-        return push_error(L);
-    }
-    GetCommState(hSerial,&dcb);
-    if (! BuildCommDCB(defn,&dcb)) {
-        fprintf(stderr,"buildcomm error:\n");
-        CloseHandle(hSerial);
-        return push_error(L);
-    }
-    if (! SetCommState(hSerial,&dcb)) {
-        fprintf(stderr,"setcomm error:\n");
-        CloseHandle(hSerial);
-        return push_error(L);
-    }
-    return push_new_File(L,hSerial,hSerial);
+  DCB dcb = {0};
+  char port[20];
+  HANDLE hSerial;
+  const char *p = defn;
+  char *q = port;
+  for (; *p != ' '; p++) {
+    *q++ = *p;
+  }
+  *q = '\0';
+  dcb.DCBlength = sizeof(dcb);
+  hSerial = CreateFile(port,GENERIC_READ | GENERIC_WRITE, 0, 0,
+      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+  if (hSerial == INVALID_HANDLE_VALUE) {
+    fprintf(stderr,"createfile\n");
+    return push_error(L);
+  }
+  GetCommState(hSerial,&dcb);
+  if (! BuildCommDCB(defn,&dcb)) {
+    fprintf(stderr,"buildcomm error:\n");
+    CloseHandle(hSerial);
+    return push_error(L);
+  }
+  if (! SetCommState(hSerial,&dcb)) {
+    fprintf(stderr,"setcomm error:\n");
+    CloseHandle(hSerial);
+    return push_error(L);
+  }
+  return push_new_File(L,hSerial,hSerial);
 }
 
 static int push_wait_result(lua_State *L, DWORD res) {
-    if (res == WAIT_OBJECT_0) {
-        lua_pushvalue(L,1);
-        lua_pushliteral(L,"OK");
-        return 2;
-    } else if (res == WAIT_TIMEOUT) {
-        lua_pushvalue(L,1);
-        lua_pushliteral(L,"TIMEOUT");
-        return 2;
-    } else {
-        return push_error(L);
-    }
+  if (res == WAIT_OBJECT_0) {
+    lua_pushvalue(L,1);
+    lua_pushliteral(L,"OK");
+    return 2;
+  } else if (res == WAIT_TIMEOUT) {
+    lua_pushvalue(L,1);
+    lua_pushliteral(L,"TIMEOUT");
+    return 2;
+  } else {
+    return push_error(L);
+  }
 }
 
 static int wait_single(HANDLE h, int timeout) {
@@ -715,6 +726,8 @@ static int push_wait(lua_State *L, HANDLE h, int timeout) {
 
 static int push_wait_async(lua_State *L, HANDLE h, int timeout, int callback);
 
+/// The Event class.
+// @type Event
 class Event {
   HANDLE hEvent;
 
@@ -722,10 +735,21 @@ class Event {
     this->hEvent = h;
   }
 
+  /// wait for this event to be signalled.
+  // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
+  // @return this event object
+  // @return either "OK" or "TIMEOUT"
+  // @function wait
   def wait(Int timeout=0) {
     return push_wait(L,this->hEvent, TIMEOUT(timeout));
   }
 
+  /// run callback when this process is finished.
+  // @param callback the callback
+  // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
+  // @return this process object
+  // @return either "OK" or "TIMEOUT"
+  // @function wait_async
   def wait_async(Value callback, Int timeout = 0) {
     return push_wait_async(L,this->hEvent, TIMEOUT(timeout), callback);
   }
@@ -741,8 +765,36 @@ class Event {
   }
 }
 
+/// The Mutex class.
+// @type Mutex
+class Mutex {
+  HANDLE hMutex;
+
+  constructor (HANDLE h) {
+    this->hMutex = h;
+  }
+
+  def lock() {
+    WaitForSingleObject(this->hMutex,INFINITE);
+    return 0;
+  }
+
+  def release() {
+    ReleaseMutex(this->hMutex);
+    return 0;
+  }
+
+  def __gc() {
+    CloseHandle(this->hMutex);
+    return 0;
+  }
+}
+
 static int _event_count = 1;
 
+/// create a new @{Event} object.
+// @param name string (optional)
+// @return @{Event}, or nil, error.
 def event (Str name="?") {
   HANDLE hEvent;
   char buff[MAX_PATH];
@@ -756,6 +808,13 @@ def event (Str name="?") {
   } else {
     return push_new_Event(L,hEvent);
   }
+}
+
+/// create a new @{Mutex} object.
+// @param name string (optional)
+// @return @{Mutex}, or nil, error.
+def mutex(Str name="") {
+  return push_new_Mutex(L,CreateMutex(NULL,FALSE,*name==0 ? NULL : name));
 }
 
 /// A class representing a Windows process.
@@ -885,7 +944,7 @@ class Process {
   // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
   // @return this process object
   // @return either "OK" or "TIMEOUT"
-  // @function wait
+  // @function wait_async
   def wait_async(Value callback, Int timeout = 0) {
     return push_wait_async(L,this->hProcess, TIMEOUT(timeout), callback);
   }
@@ -978,6 +1037,7 @@ def get_processes() {
 }
 
 /// wait for a group of processes.
+// Note that this will work with @{Event} and @{Thread} objects as well.
 // @{process-wait.lua} shows a number of processes launched
 // in parallel
 // @param processes an array of @{Process} objects
@@ -986,7 +1046,7 @@ def get_processes() {
 // @function wait_for_processes
 def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
   int status, i;
-  Process *p;
+  void *p;
   int n = lua_objlen(L,processes);
   HANDLE handles[MAXIMUM_WAIT_OBJECTS];
   if (n > MAXIMUM_WAIT_OBJECTS) {
@@ -995,8 +1055,12 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
 
   for (i = 0; i < n; i++) {
     lua_rawgeti(L,processes,i+1);
-    p = Process_arg(L,-1);
-    handles[i] = p->hProcess;
+    // any user data with a handle as the first field will work here
+    p = lua_touserdata(L,-1);
+    if (p == NULL) {
+      return push_error_msg(L,"non-object in list!");
+    }
+    handles[i] = *(HANDLE*)p;
   }
   release_mutex();
   status = WaitForMultipleObjects(n, handles, all, TIMEOUT(timeout));
@@ -1015,11 +1079,11 @@ def wait_for_processes(Value processes, Boolean all, Int timeout = 0) {
 // which may have an associated buffer and handle.
 
 #define callback_data_ \
+  HANDLE handle; \
   lua_State *L; \
   Ref callback; \
   char *buf; \
-  int bufsz; \
-  HANDLE handle;
+  int bufsz;
 
 typedef struct {
   callback_data_
@@ -1072,8 +1136,8 @@ void lcb_free(void *data) {
 // and free associated resources.
 // @type Thread
 class Thread {
-  LuaCallback *lcb;
   HANDLE thread;
+  LuaCallback *lcb;
 
   constructor (PLuaCallback lcb, HANDLE thread) {
     this->lcb = lcb;
@@ -1119,6 +1183,25 @@ class Thread {
       return push_error(L);
     }
   }
+  /// wait for this thread to finish.
+  // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
+  // @return this thread object
+  // @return either "OK" or "TIMEOUT"
+  // @function wait
+  def wait(Int timeout = 0) {
+    return push_wait(L,this->thread, TIMEOUT(timeout));
+  }
+
+  /// run callback when this thread is finished.
+  // @param callback the callback
+  // @param timeout optional timeout in millisec; defaults to waiting indefinitely.
+  // @return this thread object
+  // @return either "OK" or "TIMEOUT"
+  // @function wait_async
+  def wait_async(Value callback, Int timeout = 0) {
+    return push_wait_async(L,this->thread, TIMEOUT(timeout), callback);
+  }
+
 
   def __gc() {
     // lcb_free(this->lcb); concerned that this cd kick in prematurely!
@@ -1133,6 +1216,29 @@ int lcb_new_thread(TCB fun, void *data) {
   LuaCallback *lcb = (LuaCallback*)data;
   HANDLE thread = CreateThread(NULL,THREAD_STACK_SIZE,fun,data,0,NULL);
   return push_new_Thread(lcb->L,lcb,thread);
+}
+
+static void launcher(LuaCallback *lcb) {
+  lua_State *L = lcb->L;
+  lua_State *Lnew = lua_newthread(L);
+  push_ref(L,lcb->callback);
+  lua_xmove(L,Lnew,1);
+  push_ref(L, (int)lcb->bufsz);
+  lua_xmove(L, Lnew,1);
+  if (lua_pcall(Lnew,1,0,0) != 0) {
+    fprintf(stderr,"error %s\n",lua_tostring(Lnew,-1));
+  }
+  lcb_free(lcb);
+}
+
+/// launch a function in a new thread.
+// @param fun a Lua function
+// @param data any Lua value to be passed to function
+// @return @{Thread} object
+def thread(Value fun, Value data) {
+  LuaCallback *lcb = lcb_callback(NULL, L, fun);
+  lcb->bufsz = make_ref(L,data);
+  return lcb_new_thread((TCB)launcher,lcb);
 }
 
 static void handle_waiter (LuaCallback *lcb) {
@@ -1260,7 +1366,6 @@ def spawn_process(Str program, StrNil dir) {
   HANDLE hRead2,hPipeWrite;
   BOOL running;
   PROCESS_INFORMATION pi;
-  HANDLE hProcess = GetCurrentProcess();
   sa.bInheritHandle = TRUE;
   sa.lpSecurityDescriptor = NULL;
   InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION);
@@ -1450,8 +1555,7 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
     }
     next = 0;
     do {
-      int i,sz, outchars;
-      short *pfile;
+      int outchars;
       char outbuff[MAX_PATH];
       PFILE_NOTIFY_INFORMATION pni = (PFILE_NOTIFY_INFORMATION)(lcb_buf(fc)+next);
       outchars = WideCharToMultiByte(
@@ -1566,7 +1670,7 @@ def get_logical_drives() {
 // @function get_drive_type
 def get_drive_type(Str root) {
   UINT res = GetDriveType(root);
-  const char *type;
+  const char *type = "?";
   switch(res) {
     case DRIVE_UNKNOWN: type = "unknown"; break;
     case DRIVE_NO_ROOT_DIR: type = "none"; break;
@@ -1664,7 +1768,7 @@ class Regkey {
   // @param val the value
   // @function set_value
   def set_value(Str name, Str val) {
-    return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,val,lua_objlen(L,2)) == ERROR_SUCCESS);
+    return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,(const BYTE *)val,lua_objlen(L,2)) == ERROR_SUCCESS);
   }
 
   /// get the value and type of a name.
@@ -1855,8 +1959,8 @@ function winapi.dirs(mask,subdirs) return winapi.files(mask,subdirs,'D') end
 }
 
 initial init_mutex {
-    setup_mutex();
-    return 0;
+  setup_mutex();
+  return 0;
 }
 
 /*** Constants.
