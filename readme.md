@@ -6,7 +6,9 @@ This module provides some basic tools for working with Windows systems, finding 
 
 An  irritating fact is that Lua GUI applications (such as IUP or wxLua) cannot use @{os.execute} without the infamous 'flashing black box' of console creation. And @{io.popen} may in fact not work at all.
 
-@{execute} provides a _quiet_ method to call a shell command.  It returns the result code (like @{os.execute}) but also any text generated from the command. So for many common applications it will do as a @{io.popen} replacement as well. This function is blocking, but `winapi` provides more general ways of launching processes in the background and even capturing their output asynchronously. This will be discussed later with @{spawn_process}.
+@{execute} provides a _quiet_ method to call a shell command.  It returns the result code (like @{os.execute}) but also any text generated from the command. So for many common applications it will do as a @{io.popen} replacement as well.
+
+This function is blocking, but `winapi` provides more general ways of launching processes in the background and even capturing their output asynchronously. This will be discussed later with @{spawn_process}.
 
 Apart from @{execute}, @{shell_exec} is the Swiss-Army-Knife of Windows process creation. The first parameter is the 'action' or 'verb' to apply to the path; common actions are 'open', 'edit' and 'print'. Notice that these are the actions defined in Explorer (hence the word 'shell'). So to open a document in Word (or whatever application is registered for this extension):
 
@@ -79,7 +81,7 @@ Note that reading the result also returns the prompt '>', which isn't so obvious
     42
     >>>
 
-This kind of interactive process capture is fine for a console application, but @{File:read} is blocking and will freeze any GUI program. For this, you use @{File:read_async} which returns the result through a callback.
+This kind of interactive process capture is fine for a console application, but @{File:read} is blocking and will freeze any GUI program. For this, you use @{File:read_async} which returns the result through a callback. Continuing the Python example:
 
     > file:write '40+2\n'
     > file:read_async(function(s) print('++',s) end)
@@ -112,6 +114,8 @@ It takes me 0.743 seconds to do this, with stock Lua 5.1. But running two such s
     print(os.clock() - t)
 
 So my i3 is effectively a two-processor machine; four such processes take 1.325 seconds, just under twice as long. The second parameter means 'wait for all'; like the @{Process:wait} method, it has an optional timeout parameter.
+
+The `true` parameter forces it to wait until _all_ the proceses are finished. Jf successful, `wait_for_processes` will return the index of the exiting process in the array of processes, so by using `false` we can wait for any process to finish, deal with the results, and continue waiting for the others. This is how Lake does [multithreading](https://github.com/stevedonovan/Lake/blob/master/lake#L376) on Windows.
 
 ## Working with Windows
 
@@ -216,7 +220,7 @@ You may work internally in UTF-8 and get a suitable _short file name_ for workin
     f:write 'a new file\n'
     f:close()
 
-A filename with the correct Greek name appears in Explorer, and can be edited with Notepad.
+A filename with the correct Greek name appears in Explorer, and can be edited with any Unicode-aware application like Notepad.
 
 ## Working with Processes
 
@@ -298,7 +302,7 @@ A useful operation is watching directories for changes. You specify the director
 
 Using a callback means that you can watch multiple directories and still respond to timers, etc.
 
- Finally, @{copy_file} and @{move_file} are indispensible operations which are surprisingly tricky to write correctly in pure Lua. For general filesystem operations like finding the contents of folders, I suggest a more portable library like [LuaFileSystem](). However, you can get pretty far with a well-behaved way to call system commands:
+ Finally, @{copy_file} and @{move_file} are indispensible operations which are surprisingly tricky to write correctly in pure Lua. For general filesystem operations like finding the contents of folders, I suggest a more portable library like [LuaFileSystem](?). However, you can get pretty far with a well-behaved way to call system commands:
 
     local status,output = winapi.execute('dir /B')
     local files = {}
@@ -306,11 +310,9 @@ Using a callback means that you can watch multiple directories and still respond
         table.insert(files,f)
     end
 
-## Output and Timers
+## Output
 
-GUI applications do not have a console so @{print} does not work. @{show_message} will put up a message box to bother users, and @{output_debug_string} will write text quietly to the debug stream. A utility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647) can be used to view this output, which shows it with a timestamp.
-
-Here is the old favourite, system message boxes:
+GUI applications do not have a console so @{print} does not work. @{show_message} will put up a message box to bother users. Here is the old favourite, system message boxes:
 
     print(winapi.show_message("Message","stuff\nand nonsense","yes-no","warning"))
 
@@ -320,15 +322,21 @@ Or you may prefer to irritate the user with a sound:
 
     winapi.beep 'warning'
 
+@{output_debug_string} will write text quietly to the debug stream. A utility such as [DebugView](http://technet.microsoft.com/en-us/sysinternals/bb896647) can be used to view this output, which shows it with a timestamp.
+
+## Timers and Callbacks
+
 It is straightforward to create a timer. You could of course use @{sleep} but then your application will do nothing but sleep most of the time. This callback-driven timer can run in the background:
 
     winapi.make_timer(500,function()
         text:append 'gotcha'
     end)
 
-Such callbacks can be made GUI-safe by first calling @{use_gui} which ensures that any callback is called in the main GUI thread.
+Such callbacks can be made GUI-safe by first calling @{use_gui} which ensures that any callback is called in the main GUI thread. You _must_ do this if integrating winapi with GUI toolkits such as [wxLua](?) or [IUP](?).
 
-The basic rule for callbacks enforced by `winapi` is that only one may be active at a time; otherwise we would risk re-entering Lua on another thread, using the same Lua state. So be quick when responding to callbacks, since they effectively block Lua. For a console application, the best bet (after setting some timers and so forth) is just to sleep indefinitely:
+The basic rule for callbacks enforced by `winapi` is that only one may be active at a time; otherwise we would risk re-entering Lua on another thread, using the same Lua state. So be quick when responding to callbacks, since they effectively block Lua. If possible, use asynchronous code - for instance `Process:wait_async` if you are launchhing a new process, or `File:read_async` for reading from a file.
+
+For a console application, callbacks only happen when the thread is sleeping. the best bet (after setting some timers and so forth) is just to sleep indefinitely:
 
     winapi.sleep(-1)
 
@@ -339,15 +347,6 @@ To show what happens in an interactive prompt if you don't follow this rule:
     nil     nil     return  23
 
 In short: completely messed!
-
-There is another option. @{sleep} takes an optional argument which makes it automatically unlock and lock the mutex:
-
-    while true do
-      winapi.sleep(200,true)
-      print 'gotcha'
-    end
-
-While we are sleeping, the mutex is unlocked and anybody can grab it, but afterwards we are locked.
 
 It's possible to read from the console asynchronously, which allows you to write servers which are responsive to interactive commands.
 
@@ -363,6 +362,30 @@ It's possible to read from the console asynchronously, which allows you to write
 
 Please note that you will get the end-of-line characters as well.
 
+As of version 1.4, this console file object can also be waited on using `wait_for_processes`, which gives another way of handling commands. That function also supports a timeout, hence this entertaining little program which reads from the console and runs another operation every 500 ms.
+
+    local W = require 'winapi'
+    local f = W.get_console()
+    local title = W.get_foreground_window()
+    local count = 1
+    f:write '? '
+    while true do
+      local res = W.wait_for_processes({f},false,500)
+      if res == 1 then
+        local line = f:read()
+        if not line then break end
+        -- strip line feed
+        line = line:gsub('\r\n$','')
+        if line == 'quit' then break end
+        print(line:upper())
+        f:write '? '
+      else
+        title:set_text('counting '..count)
+        count = count + 1
+      end
+    end
+
+The console handle is signalled as soon as you type any character, but the read will block until a whole line is entered. This explains why the manic caption updating stops while you're entering a line.  Please note that another alertable handles (like events or threads) can be waited on _as well_ in this way.
 
 
 ## Reading from the Registry
@@ -376,14 +399,16 @@ Life is more complicated on Windows (as usual) but with a little bit of help fro
     require 'winapi'
 
     winapi.server(function(file)
-      file:read_async(function(s) print('['..s..']') end)
+      file:read_async(function(s)
+        print('['..s..']')
+      end)
     end)
 
     winapi.sleep(-1)
 
 Like timers and file notifications, this server runs in its own thread so we have to put the main thread to sleep.  This function is passed a callback and a pipe name; pipe names must look like '\\\\.\\pipe\\NAME' and the default name is '\\\\.\\pipe\\luawinapi'. The callback receives a file object - in this case we use @{File:read_async} to play nice with other Lua threads. Multiple clients can have open connections in this way, up to the number of available pipes.
 
-The client can connect in a very straightforward way:
+The client can connect in a very straightforward way, but note that as with Unix pipes you have to flush the output to actually physically write to the pipe:
 
     > f = io.open('\\\\.\\pipe\\luawinapi','w')
     > f:write 'hello server!\n'
@@ -421,7 +446,31 @@ On the client side:
     print(f:read()) -- DOG
     f:close()
 
-Another similarity with sockets is that you can connect to remote pipes (see [pipe names](http://msdn.microsoft.com/en-us/library/aa365783(v=vs.85).aspx))
+Another similarity with sockets is that you can connect to _remote_ pipes (see [pipe names](http://msdn.microsoft.com/en-us/library/aa365783(v=vs.85).aspx))
 
+## Events
 
+Events are kernel-level synchronization objects in Windows. Initially they are 'unsignaled' and `Event:wait` will pause until they become signaled by calling `Event:signal`.
+
+    local W = require 'winapi'
+    local e = W.event()
+    local count = 1
+
+    W.make_timer(500,function()
+        print 'finis'
+        if count == 5 then
+            os.exit()
+        end
+        e:signal()
+        count = count + 1
+    end)
+
+    while true do
+        e:wait()
+        print 'gotcha'
+    end
+
+There is also `Event:wait_async` to avoid blocking in a callback.
+
+They can optionally be given a name, and can then work across _different processes_.
 
