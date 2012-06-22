@@ -1,8 +1,6 @@
-﻿local W = require 'winapi'
-W.set_encoding(W.CP_UTF8)
-console = W.get_foreground_window()
-console:set_text 'ελληνική'
-W.set_clipboard 'ελληνική'
-print 'Press any key'
+local W = require 'winapi'
+local console = W.get_foreground_window()
+console:set_text 'e???????'
+W.set_clipboard 'e???????'
+print 'Press enter'
 io.read()
-

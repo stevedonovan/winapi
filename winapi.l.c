@@ -1218,29 +1218,6 @@ int lcb_new_thread(TCB fun, void *data) {
   return push_new_Thread(lcb->L,lcb,thread);
 }
 
-static void launcher(LuaCallback *lcb) {
-  lua_State *L = lcb->L;
-  lua_State *Lnew = lua_newthread(L);
-  push_ref(L,lcb->callback);
-  lua_xmove(L,Lnew,1);
-  push_ref(L, (int)lcb->bufsz);
-  lua_xmove(L, Lnew,1);
-  if (lua_pcall(Lnew,1,0,0) != 0) {
-    fprintf(stderr,"error %s\n",lua_tostring(Lnew,-1));
-  }
-  lcb_free(lcb);
-}
-
-/// launch a function in a new thread.
-// @param fun a Lua function
-// @param data any Lua value to be passed to function
-// @return @{Thread} object
-def thread(Value fun, Value data) {
-  LuaCallback *lcb = lcb_callback(NULL, L, fun);
-  lcb->bufsz = make_ref(L,data);
-  return lcb_new_thread((TCB)launcher,lcb);
-}
-
 static void handle_waiter (LuaCallback *lcb) {
   DWORD res = WaitForSingleObject(lcb->handle,lcb->bufsz);
   lcb_call(lcb,0,res == WAIT_TIMEOUT ? "TIMEOUT" : "OK",0);
@@ -1424,6 +1401,30 @@ def spawn_process(Str program, StrNil dir) {
 // @return return code
 // @return program output
 // @function execute
+
+static void launcher(LuaCallback *lcb) {
+  lua_State *L = lcb->L;
+  lua_State *Lnew = lua_newthread(L);
+  push_ref(L,lcb->callback);
+  lua_xmove(L,Lnew,1);
+  push_ref(L, (int)lcb->bufsz);
+  lua_xmove(L, Lnew,1);
+  if (lua_pcall(Lnew,1,0,0) != 0) {
+    fprintf(stderr,"error %s\n",lua_tostring(Lnew,-1));
+  }
+  lcb_free(lcb);
+}
+
+/// launch a function in a new thread.
+// @param fun a Lua function
+// @param data any Lua value to be passed to function
+// @return @{Thread} object
+// @function thread
+def thread(Value fun, Value data) {
+  LuaCallback *lcb = lcb_callback(NULL, L, fun);
+  lcb->bufsz = make_ref(L,data);
+  return lcb_new_thread((TCB)launcher,lcb);
+}
 
 // Timer support //////////
 typedef struct {
@@ -1765,10 +1766,16 @@ class Regkey {
 
   /// set the string value of a name.
   // @param name the name
-  // @param val the value
+  // @param val the string value
   // @function set_value
   def set_value(Str name, Str val) {
-    return push_bool(L, RegSetValueEx(this->key,name,0,REG_SZ,(const BYTE *)val,lua_objlen(L,2)) == ERROR_SUCCESS);
+    int sz = strlen(val)+1;
+    LONG res = RegSetValueEx(this->key,name,0,REG_SZ,(const BYTE *)val,sz);
+    if (res == ERROR_SUCCESS) {
+        return push_ok(L);
+    } else {
+        return push_error_code(L, res);
+    }
   }
 
   /// get the value and type of a name.

@@ -43,13 +43,15 @@ int push_ref(lua_State *L, Ref ref) {
 const char *last_error(int err) {
   static char errbuff[256];
   int sz;
-  if (err == 0)
+  if (err == 0) {
     err = GetLastError();
+  }
   sz = FormatMessage(
     FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
     NULL,err,
     MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), // Default language
-    errbuff, 256, NULL );
+    errbuff, 256, NULL
+  );
   errbuff[sz-2] = '\0'; // strip the \r\n
   return errbuff;
 }
@@ -72,6 +74,16 @@ int push_error_msg(lua_State *L, const char *msg) {
 int push_error(lua_State *L) {
   return push_error_msg(L,last_error(0));
 }
+
+/// push a particular Windows error.
+// @param L the state
+// @param err the error code
+// @return 2; 'nil' and the message
+// @function push_error
+int push_error_code(lua_State *L, int err) {
+  return push_error_msg(L,last_error(err));
+}
+
 
 /// push a true value.
 // @param L the state
@@ -185,26 +197,26 @@ int mutex_locked = 0;
 
 void lock_mutex() {
   WaitForSingleObject(hMutex,INFINITE);
-//  fprintf(stderr,"locking %d\n",mutex_locked);
-  WaitForSingleObject(hLuaMutex,INFINITE);
-//  fprintf(stderr,"locked\n");
-  mutex_locked = 1;
+  //~ fprintf(stderr,"locking %d\n",mutex_locked);
+  //~ WaitForSingleObject(hLuaMutex,INFINITE);
+  //~ fprintf(stderr,"locked\n");
+  //~ mutex_locked = 1;
   ReleaseMutex(hMutex);
 }
 
 void setup_mutex() {
-  hLuaMutex = CreateMutex(NULL,FALSE,NULL);
+  //~ hLuaMutex = CreateMutex(NULL,FALSE,NULL);
   hMutex = CreateMutex(NULL,FALSE,NULL);
   lock_mutex();
 }
 
 void release_mutex() {
   WaitForSingleObject(hMutex,INFINITE);
-//  fprintf(stderr,"releasing %d\n",mutex_locked);
-  if (mutex_locked) {
-    mutex_locked = 0;
-    ReleaseMutex(hLuaMutex);
-  }
+  //~ fprintf(stderr,"releasing %d\n",mutex_locked);
+  //~ if (mutex_locked) {
+    //~ mutex_locked = 0;
+    //~ ReleaseMutex(hLuaMutex);
+  //~ }
   ReleaseMutex(hMutex);
 }
 

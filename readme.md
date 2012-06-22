@@ -390,11 +390,27 @@ The console handle is signalled as soon as you type any character, but the read 
 
 ## Reading from the Registry
 
+The registry is an unavoidable part of living with Windows, since much useful information can be found in it, if you know the key.
+
+For instance, the environment for the _current user_ can be queried:
+
+    local key = winapi.open_reg_key [[HKEY_CURRENT_USER\Environment]]
+    print(key:get_value("PATH"))
+    k:close()
+
+And `Regkey:set_value` will then allow you to update this path, which is useful for install programs. In that case, set the optional second argument to `true` to get write-access.
+
+Please note that the data must be a plain ASCII string currently.
+
+`Regkey:get_keys` will return a list of all subkeys of the current key.
+
+When finished, it's best to explicitly use the `close` method.
+
 ## Pipe Server
 
 Interprocess communication (IPC) is one of those tangled, operating-system-dependent things that can be terribly useful. On Unix, _named pipes_ are special files which can be used for two processes to easily exchange information. One process opens the pipe for reading, and the other process opens it for writing; the first process will start reading, and this will block until the other process writes to the pipe. Since pipes are a regular part of the filesystem, two Lua scripts can use regular I/O to complete this transaction.
 
-Life is more complicated on Windows (as usual) but with a little bit of help from the API you can get the equivalent mechanism from Windows named pipes. They do work a little differently; they are more like Unix domain sockets; a server waits for a client to connect ('accept') and then produces a handle for the new client to use; it then goes back to waiting for connections.
+Life is more complicated on Windows (as usual) but with a little bit of help from the API you can get the equivalent mechanism from Windows named pipes. They do work  differently; they are more like Unix domain sockets; a server waits for a client to connect ('accept') and then produces a handle for the new client to use; it then goes back to waiting for connections.
 
     require 'winapi'
 

@@ -10,6 +10,7 @@ int push_ref(lua_State *L, Ref ref);
 
 int push_error_msg(lua_State *L, LPCSTR msg) ;
 int push_error(lua_State *L);
+int push_error_code(lua_State *L, int err);
 int push_ok(lua_State *L);
 int push_bool(lua_State *L, int bval);
 void throw_error(lua_State *L, LPCSTR msg);
