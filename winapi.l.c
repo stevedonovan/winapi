@@ -1767,10 +1767,34 @@ class Regkey {
   /// set the string value of a name.
   // @param name the name
   // @param val the string value
+  // @param type one of REG_BINARY,REG_DWORD, REG_SZ, REG_MULTI_SZ, REG_EXPAND_SZ
   // @function set_value
-  def set_value(Str name, Str val) {
-    int sz = strlen(val)+1;
-    LONG res = RegSetValueEx(this->key,name,0,REG_SZ,(const BYTE *)val,sz);
+  def set_value(Str name, Value val, Int type=REG_SZ) {
+    int sz;
+    DWORD ival;
+    const char *str;
+    const BYTE *data;
+    WCHAR wname[MAX_KEYS];
+    wstring_buff(name,wname,sizeof(wname));
+    if (lua_isstring(L,val)) {
+        if (type == REG_DWORD) {
+            return push_error_msg(L, "parameter must be a number for REG_DWORD");
+        }
+        str = lua_tostring(L,val);
+        if (type != REG_BINARY) {
+            WStr res = wstring(str);
+            sz = (lstrlenW(res)+1)*sizeof(WCHAR);
+            data = (const BYTE *)res;
+        } else {
+            sz = lua_objlen(L,val);
+            data = (const BYTE *)str;
+        }
+    } else {
+        ival = (DWORD)lua_tonumber(L,val);
+        data = (const BYTE *)&ival;
+        sz = sizeof(DWORD);
+    }
+    LONG res = RegSetValueExW(this->key,wname,0,type,data,sz);
     if (res == ERROR_SUCCESS) {
         return push_ok(L);
     } else {
@@ -2076,7 +2100,12 @@ constants {
   WIN_BOTTOM,
   WIN_NOTOPMOST,
   WIN_TOP,
-  WIN_TOPMOST
+  WIN_TOPMOST,
+  REG_BINARY,
+  REG_DWORD,
+  REG_SZ,
+  REG_MULTI_SZ,
+  REG_EXPAND_SZ
 }
 
 }

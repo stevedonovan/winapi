@@ -14,11 +14,14 @@ k:close()
 k,err = winapi.open_reg_key ([[HKEY_CURRENT_USER\Environment]],true)
 path = k:get_value("PATH")
 print(path)
+print(k:get_value("TEMP"))
 if #arg > 0 then
-    --print(k:set_value("PATH",path..';'..arg[1]))
-    --print(k:get_value("PATH"))
-    k:set_value(arg[1],arg[2])
-    print(k:get_value(arg[1]))
+    local type = winapi.REG_Z
+    if arg[3] then
+	type = winapi[arg[3]]
+    end
+    k:set_value(arg[1],arg[2],type)
+    print(k:get_value(arg[1],type))
 end
 k:close()
 

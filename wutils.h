@@ -19,7 +19,6 @@ void make_message_window();
 BOOL call_lua(lua_State *L, Ref ref, int idx, LPCSTR text, int discard);
 void lock_mutex();
 void release_mutex();
-void wait_mutex();
 void setup_mutex();
 
 // encoding and converting text

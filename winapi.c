@@ -2353,14 +2353,39 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   /// set the string value of a name.
   // @param name the name
   // @param val the string value
+  // @param type one of REG_BINARY,REG_DWORD, REG_SZ, REG_MULTI_SZ, REG_EXPAND_SZ
   // @function set_value
   static int l_Regkey_set_value(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_checklstring(L,2,NULL);
-    const char *val = luaL_checklstring(L,3,NULL);
-    #line 1772 "winapi.l.c"
-    int sz = strlen(val)+1;
-    LONG res = RegSetValueEx(this->key,name,0,REG_SZ,(const BYTE *)val,sz);
+    int val = 3;
+    int type = luaL_optinteger(L,4,REG_SZ);
+    #line 1773 "winapi.l.c"
+    int sz;
+    DWORD ival;
+    const char *str;
+    const BYTE *data;
+    WCHAR wname[MAX_KEYS];
+    wstring_buff(name,wname,sizeof(wname));
+    if (lua_isstring(L,val)) {
+        if (type == REG_DWORD) {
+            return push_error_msg(L, "parameter must be a number for REG_DWORD");
+        }
+        str = lua_tostring(L,val);
+        if (type != REG_BINARY) {
+            WStr res = wstring(str);
+            sz = (lstrlenW(res)+1)*sizeof(WCHAR);
+            data = (const BYTE *)res;
+        } else {
+            sz = lua_objlen(L,val);
+            data = (const BYTE *)str;
+        }
+    } else {
+        ival = (DWORD)lua_tonumber(L,val);
+        data = (const BYTE *)&ival;
+        sz = sizeof(DWORD);
+    }
+    LONG res = RegSetValueExW(this->key,wname,0,type,data,sz);
     if (res == ERROR_SUCCESS) {
         return push_ok(L);
     } else {
@@ -2376,7 +2401,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   static int l_Regkey_get_value(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
     const char *name = luaL_optlstring(L,2,"",NULL);
-    #line 1787 "winapi.l.c"
+    #line 1811 "winapi.l.c"
     DWORD type,size = sizeof(wbuff);
     if (RegQueryValueExW(this->key,wstring(name),0,&type,(void *)wbuff,&size) != ERROR_SUCCESS) {
       return push_error(L);
@@ -2398,7 +2423,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function get_keys
   static int l_Regkey_get_keys(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1807 "winapi.l.c"
+    #line 1831 "winapi.l.c"
     int i = 0;
     LONG res;
     DWORD size;
@@ -2424,7 +2449,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function close
   static int l_Regkey_close(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1831 "winapi.l.c"
+    #line 1855 "winapi.l.c"
     RegCloseKey(this->key);
     this->key = NULL;
     return 0;
@@ -2436,19 +2461,19 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   // @function flush
   static int l_Regkey_flush(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1841 "winapi.l.c"
+    #line 1865 "winapi.l.c"
     return push_bool(L,RegFlushKey(this->key));
   }
 
   static int l_Regkey___gc(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);
-    #line 1845 "winapi.l.c"
+    #line 1869 "winapi.l.c"
     if (this->key != NULL)
       RegCloseKey(this->key);
     return 0;
   }
 
-#line 1850 "winapi.l.c"
+#line 1874 "winapi.l.c"
 
 static const struct luaL_Reg Regkey_methods [] = {
      {"set_value",l_Regkey_set_value},
@@ -2473,7 +2498,7 @@ static void Regkey_register (lua_State *L) {
 }
 
 
-#line 1852 "winapi.l.c"
+#line 1876 "winapi.l.c"
 
 /// Registry Functions.
 // @section Registry
@@ -2488,7 +2513,7 @@ static void Regkey_register (lua_State *L) {
 static int l_open_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
   int writeable = lua_toboolean(L,2);
-  #line 1863 "winapi.l.c"
+  #line 1887 "winapi.l.c"
   HKEY hKey;
   DWORD access;
   char kbuff[1024];
@@ -2510,7 +2535,7 @@ static int l_open_reg_key(lua_State *L) {
 // @function create_reg_key
 static int l_create_reg_key(lua_State *L) {
   const char *path = luaL_checklstring(L,1,NULL);
-  #line 1883 "winapi.l.c"
+  #line 1907 "winapi.l.c"
   char kbuff[1024];
   HKEY hKey = split_registry_key(path,kbuff);
   if (hKey == NULL) {
@@ -2523,7 +2548,7 @@ static int l_create_reg_key(lua_State *L) {
   }
 }
 
-#line 1966 "winapi.l.c"
+#line 1990 "winapi.l.c"
 static const char *lua_code_block = ""\
   "function winapi.execute(cmd,unicode)\n"\
   "  local comspec = os.getenv('COMSPEC')\n"\
@@ -2601,14 +2626,14 @@ static void load_lua_code (lua_State *L) {
 }
 
 
-#line 1971 "winapi.l.c"
+#line 1995 "winapi.l.c"
 int init_mutex(lua_State *L) {
 setup_mutex();
   return 0;
 }
 
 
-#line 1973 "winapi.l.c"
+#line 1997 "winapi.l.c"
 
 /*** Constants.
 The following constants are available:
@@ -2657,10 +2682,10 @@ The following constants are available:
  * FILE\_ACTION\_RENAMED\_NEW\_NAME
 
  @section constants
- */#line 2020 "winapi.l.c"
+ */#line 2044 "winapi.l.c"
 
 
- #line 2022 "winapi.l.c"
+ #line 2046 "winapi.l.c"
 
  /// useful Windows API constants
  // @table constants
@@ -2668,7 +2693,7 @@ The following constants are available:
 #define CP_UTF16 -1
 
 
-#line 2080 "winapi.l.c"
+#line 2109 "winapi.l.c"
 static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,CP_ACP); lua_setfield(L,-2,"CP_ACP");
  lua_pushinteger(L,CP_UTF8); lua_setfield(L,-2,"CP_UTF8");
@@ -2721,9 +2746,14 @@ static void set_winapi_constants(lua_State *L) {
  lua_pushinteger(L,WIN_NOTOPMOST); lua_setfield(L,-2,"WIN_NOTOPMOST");
  lua_pushinteger(L,WIN_TOP); lua_setfield(L,-2,"WIN_TOP");
  lua_pushinteger(L,WIN_TOPMOST); lua_setfield(L,-2,"WIN_TOPMOST");
+ lua_pushinteger(L,REG_BINARY); lua_setfield(L,-2,"REG_BINARY");
+ lua_pushinteger(L,REG_DWORD); lua_setfield(L,-2,"REG_DWORD");
+ lua_pushinteger(L,REG_SZ); lua_setfield(L,-2,"REG_SZ");
+ lua_pushinteger(L,REG_MULTI_SZ); lua_setfield(L,-2,"REG_MULTI_SZ");
+ lua_pushinteger(L,REG_EXPAND_SZ); lua_setfield(L,-2,"REG_EXPAND_SZ");
 }
 
-#line 2082 "winapi.l.c"
+#line 2111 "winapi.l.c"
 static const luaL_Reg winapi_funs[] = {
        {"set_encoding",l_set_encoding},
    {"get_encoding",l_get_encoding},
