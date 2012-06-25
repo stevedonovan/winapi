@@ -400,7 +400,7 @@ For instance, the environment for the _current user_ can be queried:
 
 And `Regkey:set_value` will then allow you to update this path, which is useful for install programs. In that case, set the optional second argument to `true` to get write-access.
 
-Please note that the data must be a plain ASCII string currently.
+This has an optional third parameter, which is the data type of the key: `winapi` has the constants `REG_BINARY`,`REG_DWORD`, `REG_SZ`, `REG_MULTI_SZ` and `REG_EXPAND_SZ`. `REG_DWORD` can be passed a _number_ value, and `REG_BINARY` is passed a plain un-encoded binary Lua string; all the other types use the current encoding. The `REG_MULTI_SZ` type is special, and requires strings that look like "alice\0bob\0".
 
 `Regkey:get_keys` will return a list of all subkeys of the current key.
 

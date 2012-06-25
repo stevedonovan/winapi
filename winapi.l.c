@@ -1767,11 +1767,12 @@ class Regkey {
   /// set the string value of a name.
   // @param name the name
   // @param val the string value
-  // @param type one of REG_BINARY,REG_DWORD, REG_SZ, REG_MULTI_SZ, REG_EXPAND_SZ
+  // @param type one of `REG_BINARY`,`REG_DWORD`,`REG_SZ`,`REG_MULTI_SZ`,`REG_EXPAND_SZ`
   // @function set_value
   def set_value(Str name, Value val, Int type=REG_SZ) {
     int sz;
     DWORD ival;
+    LONG res;
     const char *str;
     const BYTE *data;
     WCHAR wname[MAX_KEYS];
@@ -1794,7 +1795,7 @@ class Regkey {
         data = (const BYTE *)&ival;
         sz = sizeof(DWORD);
     }
-    LONG res = RegSetValueExW(this->key,wname,0,type,data,sz);
+    res = RegSetValueExW(this->key,wname,0,type,data,sz);
     if (res == ERROR_SUCCESS) {
         return push_ok(L);
     } else {

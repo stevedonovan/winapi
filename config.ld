@@ -13,6 +13,6 @@ A minimal but useful binding to the Windows API.
 
 --manual_url 'file:///D:/dev/lua/projects/lua-5.1.4/doc/manual.html'
 
-format = 'markdown'
+format = 'discount'
 
 

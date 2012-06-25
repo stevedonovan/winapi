@@ -16,7 +16,7 @@ path = k:get_value("PATH")
 print(path)
 print(k:get_value("TEMP"))
 if #arg > 0 then
-    local type = winapi.REG_Z
+    local type = winapi.REG_SZ
     if arg[3] then
 	type = winapi[arg[3]]
     end
