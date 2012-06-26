@@ -2353,7 +2353,7 @@ static void Regkey_ctor(lua_State *L, Regkey *this, HKEY k) {
   /// set the string value of a name.
   // @param name the name
   // @param val the string value
-  // @param type one of REG_BINARY,REG_DWORD, REG_SZ, REG_MULTI_SZ, REG_EXPAND_SZ
+  // @param type one of `REG_BINARY`,`REG_DWORD`,`REG_SZ`,`REG_MULTI_SZ`,`REG_EXPAND_SZ`
   // @function set_value
   static int l_Regkey_set_value(lua_State *L) {
     Regkey *this = Regkey_arg(L,1);

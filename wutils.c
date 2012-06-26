@@ -230,9 +230,10 @@ void release_mutex() {
 // @function call_lua
 BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
   BOOL res;
-  lock_mutex();
   if (s_use_mutex) {
+    lock_mutex();
     res = call_lua_direct(L,ref,idx,text,discard);
+    release_mutex();
   } else {
     LuaCallParms *parms = (LuaCallParms*)malloc(sizeof(LuaCallParms));
     parms->L = L;
@@ -243,7 +244,7 @@ BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
     PostMessage(hMessageWin,MY_INTERNAL_LUA_MESSAGE,0,(LPARAM)parms);
     res = FALSE; // for now
   }
-  release_mutex();
+
   return res;
 }
 
