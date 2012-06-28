@@ -132,6 +132,7 @@ BOOL call_lua_direct(lua_State *L, Ref ref, int idx, const char *text, int disca
   if (text != NULL) {
     lua_pushstring(L,text);
     ++ipush;
+    free((char*)text);
   }
   lua_call(L, ipush, 1);
   res = lua_toboolean(L,-1);
@@ -230,6 +231,12 @@ void release_mutex() {
 // @function call_lua
 BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
   BOOL res;
+  if (text) {
+    size_t len = strlen(text);
+    char *mtext = (char *)malloc(len+1);
+    memcpy(mtext,text,len+1);
+    text = mtext;
+  }
   if (s_use_mutex) {
     lock_mutex();
     res = call_lua_direct(L,ref,idx,text,discard);

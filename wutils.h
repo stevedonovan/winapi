@@ -7,7 +7,7 @@ extern int mutex_locked;
 Ref make_ref(lua_State *L, int idx);
 void release_ref(lua_State *L, Ref ref);
 int push_ref(lua_State *L, Ref ref);
-
+const char *last_error(int err);
 int push_error_msg(lua_State *L, LPCSTR msg) ;
 int push_error(lua_State *L);
 int push_error_code(lua_State *L, int err);

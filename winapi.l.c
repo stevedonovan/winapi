@@ -397,6 +397,14 @@ def get_desktop_window() {
   return push_new_Window(L, GetDesktopWindow());
 }
 
+/// a Window object from a handle
+// @param a Windows nandle
+// @return @{Window}
+// @function window_from_handle
+def window_from_handle(Int hwnd) {
+  return push_new_Window(L, (HWND)hwnd);
+}
+
 /// enumerate over all top-level windows.
 // @param callback a function to receive each window object
 // @function enum_windows
@@ -1161,8 +1169,9 @@ class Thread {
   // and handles. @{test-timer.lua} shows how a timer can be terminated.
   // @function kill
   def kill() {
+    BOOL ret = TerminateThread(this->thread,1);
     lcb_free(this->lcb);
-    return push_bool(L, TerminateThread(this->thread,1));
+    return push_bool(L,ret);
   }
 
   /// set a thread's priority
@@ -1536,44 +1545,6 @@ def make_pipe_server(Value callback, Str pipename = "\\\\.\\pipe\\luawinapi") {
   return lcb_new_thread((TCB)&pipe_server_thread,psp);
 }
 
-// Directory change notification ///////
-
-typedef struct {
-  callback_data_
-  DWORD how;
-  DWORD subdirs;
-} FileChangeParms;
-
-static void file_change_thread(FileChangeParms *fc) { // background file monitor thread
-  while (1) {
-    int next;
-    DWORD bytes;
-    // This fills in some gaps:
-    // http://qualapps.blogspot.com/2010/05/understanding-readdirectorychangesw_19.html
-    if (! ReadDirectoryChangesW(lcb_handle(fc),lcb_buf(fc),lcb_bufsz(fc),
-        fc->subdirs, fc->how, &bytes,NULL,NULL))  {
-      throw_error(fc->L,"read dir changes failed");
-    }
-    next = 0;
-    do {
-      int outchars;
-      char outbuff[MAX_PATH];
-      PFILE_NOTIFY_INFORMATION pni = (PFILE_NOTIFY_INFORMATION)(lcb_buf(fc)+next);
-      outchars = WideCharToMultiByte(
-        get_encoding(), 0,
-        pni->FileName,
-        pni->FileNameLength/2, // it's bytes, not number of characters!
-        outbuff,sizeof(outbuff),
-        NULL,NULL);
-      if (outchars == 0) {
-        throw_error(fc->L,"wide char conversion borked");
-      }
-      outbuff[outchars] = '\0';  // not null-terminated!
-      lcb_call(fc,pni->Action,outbuff,0);
-      next = pni->NextEntryOffset;
-    } while (next != 0);
-  }
-}
 
 /// Drive information and directories.
 // @section Directories
@@ -1711,6 +1682,49 @@ def get_disk_network_name(Str root) {
     return push_wstring(L,wbuff);
   } else {
     return push_error(L);
+  }
+}
+
+// Directory change notification ///////
+
+typedef struct {
+  callback_data_
+  DWORD how;
+  DWORD subdirs;
+} FileChangeParms;
+
+static void file_change_thread(FileChangeParms *fc) { // background file monitor thread
+  while (1) {
+    int next, offset;
+    DWORD bytes;
+    // This fills in some gaps:
+    // http://qualapps.blogspot.com/2010/05/understanding-readdirectorychangesw_19.html
+    if (! ReadDirectoryChangesW(lcb_handle(fc),lcb_buf(fc),lcb_bufsz(fc),
+        fc->subdirs, fc->how, &bytes,NULL,NULL))  {
+        lcb_call(fc,-1,last_error(0),0);
+        break;
+    }
+    next = 0;
+    offset = 0;
+    do {
+      int outchars;
+      char outbuff[MAX_PATH];
+      PFILE_NOTIFY_INFORMATION pni = (PFILE_NOTIFY_INFORMATION)(lcb_buf(fc)+offset);
+      outchars = WideCharToMultiByte(
+        get_encoding(), 0,
+        pni->FileName,
+        pni->FileNameLength/2, // it's bytes, not number of characters!
+        outbuff,sizeof(outbuff),
+        NULL,NULL);
+      if (outchars == 0) {
+        lcb_call(fc,-1,"wide char conversion borked",0);
+        break;
+      }
+      outbuff[outchars] = '\0';  // not null-terminated!
+      lcb_call(fc,pni->Action,outbuff,0);
+      next = pni->NextEntryOffset;
+      offset += next;
+    } while (next != 0);
   }
 }
 
