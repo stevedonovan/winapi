@@ -191,6 +191,15 @@ class Window {
     return 0;
   }
 
+  /// change the visibility without blocking.
+  // @param flags one of `SW_SHOW`, `SW_MAXIMIZE`, etc
+  // @function show
+  def show_async(Int flags = SW_SHOW) {
+    ShowWindowAsync(this->hwnd,flags);
+    return 0;
+  }
+
+
   /// get the position in pixels
   // @return left position
   // @return top position
@@ -264,6 +273,16 @@ class Window {
   def send_message(Int msg, Number wparam, Number lparam) {
     lua_pushinteger(L,SendMessage(this->hwnd,msg,(WPARAM)wparam,(LPARAM)lparam));
     return 1;
+  }
+
+    /// send a message asynchronously.
+  // @param msg the message
+  // @param wparam
+  // @param lparam
+  // @return the result
+  // @function send_message
+  def post_message(Int msg, Number wparam, Number lparam) {
+    return push_bool(L,PostMessage(this->hwnd,msg,(WPARAM)wparam,(LPARAM)lparam));
   }
 
   /// enumerate all child windows.
@@ -527,6 +546,17 @@ def tile_windows(Window parent, Boolean horiz, Value kids, Value bounds) {
 // @section miscellaneous
 
 static int push_new_File(lua_State *L,HANDLE hread, HANDLE hwrite);
+
+/// Last error.
+// @return error code
+// @return error message
+// @function last_error
+def last_error() {
+  int err = GetLastError();
+  lua_pushinteger(L,err);
+  lua_pushstring(L,last_error(err));
+  return 2;
+}
 
 /// sleep and use no processing time.
 // @param millisec sleep period
@@ -2072,6 +2102,9 @@ constants {
   SW_MAXIMIZE,
   SW_MINIMIZE,
   SW_SHOWNORMAL,
+  SW_SHOWNOACTIVATE,
+  SW_SHOW,
+  SW_RESTORE,
   VK_BACK,
   VK_TAB,
   VK_RETURN,
