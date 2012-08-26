@@ -193,8 +193,7 @@ void make_message_window() {
   }
 }
 
-static HANDLE hLuaMutex = NULL, hMutex = NULL;
-int mutex_locked = 0;
+static HANDLE hMutex = NULL;
 
   //~ fprintf(stderr,"lock waiting %d\n",(int)GetCurrentThreadId());
 

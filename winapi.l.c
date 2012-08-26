@@ -374,7 +374,11 @@ class Window {
 def find_window(StrNil cname, StrNil wname) {
   HWND hwnd;
   hwnd = FindWindow(cname,wname);
-  return push_new_Window(L,hwnd);
+  if (hwnd == NULL) {
+    return push_error(L);
+  } else {
+    return push_new_Window(L,hwnd);
+  }
 }
 
 /// makes a function that matches against window text
@@ -561,10 +565,12 @@ def last_error() {
 /// sleep and use no processing time.
 // @param millisec sleep period
 // @function sleep
-def sleep(Int millisec) {
-  release_mutex();
+def sleep(Int millisec, Int dont_lock=0) {
+  if (! dont_lock)
+    release_mutex();
   Sleep(millisec);
-  lock_mutex();
+  if (! dont_lock)
+    lock_mutex();
   return 0;
 }
 
@@ -1441,13 +1447,19 @@ def spawn_process(Str program, StrNil dir) {
 // @return program output
 // @function execute
 
+
+static HANDLE hThreadMutex = NULL;
+
+
 static void launcher(LuaCallback *lcb) {
   lua_State *L = lcb->L;
   lua_State *Lnew = lua_newthread(L);
+  //~ WaitForSingleObject(hThreadMutex,INFINITE);
   push_ref(L,lcb->callback);
   lua_xmove(L,Lnew,1);
   push_ref(L, (int)lcb->bufsz);
   lua_xmove(L, Lnew,1);
+  //~ ReleaseMutex(hThreadMutex);
   if (lua_pcall(Lnew,1,0,0) != 0) {
     fprintf(stderr,"error %s\n",lua_tostring(Lnew,-1));
   }
@@ -1462,7 +1474,12 @@ static void launcher(LuaCallback *lcb) {
 def thread(Value fun, Value data) {
   LuaCallback *lcb = lcb_callback(NULL, L, fun);
   lcb->bufsz = make_ref(L,data);
-  return lcb_new_thread((TCB)launcher,lcb);
+  if (hThreadMutex == NULL) {
+    hThreadMutex = CreateMutex(NULL,FALSE,NULL);
+  }
+  lcb_new_thread((TCB)launcher,lcb);
+  //~ WaitForSingleObject(hThreadMutex,INFINITE);
+  return 1;
 }
 
 // Timer support //////////
