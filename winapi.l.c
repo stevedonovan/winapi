@@ -191,14 +191,13 @@ class Window {
     return 0;
   }
 
-  /// change the visibility without blocking.
-  // @param flags one of `SW_SHOW`, `SW_MAXIMIZE`, etc
-  // @function show
-  def show_async(Int flags = SW_SHOW) {
-    ShowWindowAsync(this->hwnd,flags);
-    return 0;
-  }
-
+   /// change the visibility without blocking.
+   // @param flags one of `SW_SHOW`, `SW_MAXIMIZE`, etc
+   // @function show_async
+   def show_async(Int flags = SW_SHOW) {
+     ShowWindowAsync(this->hwnd,flags);
+     return 0;
+   }
 
   /// get the position in pixels
   // @return left position
@@ -275,15 +274,16 @@ class Window {
     return 1;
   }
 
-    /// send a message asynchronously.
-  // @param msg the message
-  // @param wparam
-  // @param lparam
-  // @return the result
-  // @function send_message
+   /// send a message asynchronously.
+   // @param msg the message
+   // @param wparam
+   // @param lparam
+   // @return the result
+   // @function post_message
   def post_message(Int msg, Number wparam, Number lparam) {
     return push_bool(L,PostMessage(this->hwnd,msg,(WPARAM)wparam,(LPARAM)lparam));
   }
+
 
   /// enumerate all child windows.
   // @param a callback which to receive each window object
@@ -372,8 +372,7 @@ class Window {
 // @return @{Window}
 // @function find_window
 def find_window(StrNil cname, StrNil wname) {
-  HWND hwnd;
-  hwnd = FindWindow(cname,wname);
+  HWND hwnd = FindWindow(cname,wname);
   if (hwnd == NULL) {
     return push_error(L);
   } else {
@@ -551,26 +550,13 @@ def tile_windows(Window parent, Boolean horiz, Value kids, Value bounds) {
 
 static int push_new_File(lua_State *L,HANDLE hread, HANDLE hwrite);
 
-/// Last error.
-// @return error code
-// @return error message
-// @function last_error
-def last_error() {
-  int err = GetLastError();
-  lua_pushinteger(L,err);
-  lua_pushstring(L,last_error(err));
-  return 2;
-}
-
 /// sleep and use no processing time.
 // @param millisec sleep period
 // @function sleep
-def sleep(Int millisec, Int dont_lock=0) {
-  if (! dont_lock)
-    release_mutex();
+def sleep(Int millisec) {
+  release_mutex();
   Sleep(millisec);
-  if (! dont_lock)
-    lock_mutex();
+  lock_mutex();
   return 0;
 }
 
@@ -651,7 +637,7 @@ def set_clipboard(Str text) {
   LPWSTR p;
   int bufsize = 3*strlen(text);
   if (! OpenClipboard(NULL)) {
-    return push_error(L);
+    return push_perror(L,"openclipboard");
   }
   EmptyClipboard();
   glob = GlobalAlloc(GMEM_MOVEABLE, bufsize);
@@ -673,7 +659,7 @@ def get_clipboard() {
   HGLOBAL glob;
   LPCWSTR p;
   if (! OpenClipboard(NULL)) {
-    return push_error(L);
+    return push_perror(L,"openclipboard");
   }
   glob = GetClipboardData(CF_UNICODETEXT);
   if (glob == NULL) {
@@ -725,19 +711,16 @@ def open_serial(Str defn) {
   hSerial = CreateFile(port,GENERIC_READ | GENERIC_WRITE, 0, 0,
       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
   if (hSerial == INVALID_HANDLE_VALUE) {
-    fprintf(stderr,"createfile\n");
-    return push_error(L);
+    return push_perror(L,"createfile");
   }
   GetCommState(hSerial,&dcb);
   if (! BuildCommDCB(defn,&dcb)) {
-    fprintf(stderr,"buildcomm error:\n");
     CloseHandle(hSerial);
-    return push_error(L);
+    return push_perror(L,"buildcom");
   }
   if (! SetCommState(hSerial,&dcb)) {
-    fprintf(stderr,"setcomm error:\n");
     CloseHandle(hSerial);
-    return push_error(L);
+    return push_perror(L,"setcomm");
   }
   return push_new_File(L,hSerial,hSerial);
 }
@@ -1146,9 +1129,9 @@ LuaCallback *lcb_callback(void *lcb, lua_State *L, int idx) {
   return data;
 }
 
-BOOL lcb_call(void *data, int idx, Str text, int persist) {
+BOOL lcb_call(void *data, int idx, Str text, int flags) {
   LuaCallback *lcb = (LuaCallback*)data;
-  return call_lua(lcb->L,lcb->callback,idx,text,persist);
+  return call_lua(lcb->L,lcb->callback,idx,text,flags);
 }
 
 void lcb_allocate_buffer(void *data, int size) {
@@ -1325,7 +1308,8 @@ class File {
     int n;
     do {
       n = raw_read(this);
-      lcb_call (this,0,lcb_buf(this),! n);
+      // empty buffer is passed at end - we can discard the callback then.
+      lcb_call (this,0,lcb_buf(this),n == 0 ? DISCARD : 0);
     } while (n);
 
   }
@@ -1447,19 +1431,13 @@ def spawn_process(Str program, StrNil dir) {
 // @return program output
 // @function execute
 
-
-static HANDLE hThreadMutex = NULL;
-
-
 static void launcher(LuaCallback *lcb) {
   lua_State *L = lcb->L;
   lua_State *Lnew = lua_newthread(L);
-  //~ WaitForSingleObject(hThreadMutex,INFINITE);
   push_ref(L,lcb->callback);
   lua_xmove(L,Lnew,1);
   push_ref(L, (int)lcb->bufsz);
   lua_xmove(L, Lnew,1);
-  //~ ReleaseMutex(hThreadMutex);
   if (lua_pcall(Lnew,1,0,0) != 0) {
     fprintf(stderr,"error %s\n",lua_tostring(Lnew,-1));
   }
@@ -1474,12 +1452,7 @@ static void launcher(LuaCallback *lcb) {
 def thread(Value fun, Value data) {
   LuaCallback *lcb = lcb_callback(NULL, L, fun);
   lcb->bufsz = make_ref(L,data);
-  if (hThreadMutex == NULL) {
-    hThreadMutex = CreateMutex(NULL,FALSE,NULL);
-  }
-  lcb_new_thread((TCB)launcher,lcb);
-  //~ WaitForSingleObject(hThreadMutex,INFINITE);
-  return 1;
+  return lcb_new_thread((TCB)launcher,lcb);
 }
 
 // Timer support //////////
@@ -1491,6 +1464,7 @@ typedef struct {
 static void timer_thread(TimerData *data) { // background timer thread
   while (1) {
     Sleep(data->msec);
+    // no parameters passed, but if we return true then we exit!
     if (lcb_call(data,0,0,0))
       break;
   }
@@ -1525,17 +1499,20 @@ static void pipe_server_thread(PipeServerParms *parms) {
   while (1) {
     BOOL connected;
     HANDLE hPipe = CreateNamedPipe(
-          parms->pipename,             // pipe named
-          PIPE_ACCESS_DUPLEX,       // read/write access
-          PIPE_WAIT,                // blocking mode
-          255,
-          PSIZE,                  // output buffer size
-          PSIZE,                  // input buffer size
-          0,                        // client time-out
-          NULL);                    // default security attribute
+      parms->pipename,             // pipe named
+      PIPE_ACCESS_DUPLEX,       // read/write access
+      PIPE_WAIT,                // blocking mode
+      255,
+      PSIZE,                  // output buffer size
+      PSIZE,                  // input buffer size
+      0,                        // client time-out
+      NULL);                    // default security attribute
 
     if (hPipe == INVALID_HANDLE_VALUE) {
-      push_error(parms->L); // how to signal main thread about this?
+      // could not create named pipe - callback is passed nil, err msg.
+      lua_pushnil(parms->L);
+      lcb_call(parms,-1,last_error(0),REF_IDX | DISCARD);
+      return;
     }
     // Wait for the client to connect; if it succeeds,
     // the function returns a nonzero value. If the function
@@ -1546,7 +1523,7 @@ static void pipe_server_thread(PipeServerParms *parms) {
 
     if (connected) {
       push_new_File(parms->L,hPipe,hPipe);
-      lcb_call(parms,-1,0,0);
+      lcb_call(parms,-1,0,REF_IDX); // pass it a new File reference
     } else {
       CloseHandle(hPipe);
     }
@@ -1617,7 +1594,7 @@ def short_path(Str path) {
     NULL);
   if (hFile == INVALID_HANDLE_VALUE) {
     if (GetLastError() != ERROR_FILE_EXISTS) // that error is fine!
-      return push_error(L);
+      return push_perror(L,"createfile");
   } else { // if we created it successfully, then close.
     CloseHandle(hFile);
   }
@@ -1748,7 +1725,7 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
     // http://qualapps.blogspot.com/2010/05/understanding-readdirectorychangesw_19.html
     if (! ReadDirectoryChangesW(lcb_handle(fc),lcb_buf(fc),lcb_bufsz(fc),
         fc->subdirs, fc->how, &bytes,NULL,NULL))  {
-        lcb_call(fc,-1,last_error(0),0);
+        lcb_call(fc,-1,last_error(0),INTEGER | DISCARD);
         break;
     }
     next = 0;
@@ -1764,11 +1741,12 @@ static void file_change_thread(FileChangeParms *fc) { // background file monitor
         outbuff,sizeof(outbuff),
         NULL,NULL);
       if (outchars == 0) {
-        lcb_call(fc,-1,"wide char conversion borked",0);
+        lcb_call(fc,-1,"wide char conversion borked",INTEGER | DISCARD);
         break;
       }
       outbuff[outchars] = '\0';  // not null-terminated!
-      lcb_call(fc,pni->Action,outbuff,0);
+      // pass the action that occurred and the file name
+      lcb_call(fc,pni->Action,outbuff,INTEGER);
       next = pni->NextEntryOffset;
       offset += next;
     } while (next != 0);
@@ -1871,19 +1849,29 @@ class Regkey {
   // @function get_value
   def get_value(Str name = "") {
     DWORD type,size = sizeof(wbuff);
-    if (RegQueryValueExW(this->key,wstring(name),0,&type,(void *)wbuff,&size) != ERROR_SUCCESS) {
+    void *data = wbuff;
+    if (RegQueryValueExW(this->key,wstring(name),0,&type,data,&size) != ERROR_SUCCESS) {
       return push_error(L);
     }
     if (type == REG_BINARY) {
-      lua_pushlstring(L,(const char *)wbuff,size);
+      lua_pushlstring(L,(const char *)data,size);
     } else if (type == REG_EXPAND_SZ || type == REG_SZ) {
       push_wstring(L,wbuff); //,size);
     } else {
-      lua_pushnumber(L,*(unsigned long *)wbuff);
+      lua_pushnumber(L,*(unsigned long *)data);
     }
     lua_pushinteger(L,type);
     return 2;
 
+  }
+
+  def delete_key(Str name) {
+    if (RegDeleteKeyW(this->key,wstring(name)) == ERROR_SUCCESS) {
+      lua_pushboolean(L,1);
+    } else {
+      return push_error(L);
+    }
+    return 1;
   }
 
   /// enumerate the subkeys of a key.

@@ -8,9 +8,9 @@
 
 #define MAX_KEY MAX_PATH
 
-#define eq(s1,s2) (strcmp(s1,s2)==0)
+#include "wutils.h"
 
-typedef int Ref;
+#define eq(s1,s2) (strcmp(s1,s2)==0)
 
 /// make a reference to a Lua object.
 // @param L the state
@@ -75,6 +75,16 @@ int push_error(lua_State *L) {
   return push_error_msg(L,last_error(0));
 }
 
+/// push the last Windows error with a prefix.
+// @param L the state
+// @return 2; 'nil' and the message
+// @function push_error
+int push_perror(lua_State *L, const char *prefix) {
+  char buff[512];
+  sprintf(buff,"%s: %s",prefix,last_error(0));
+  return push_error_msg(L,buff);
+}
+
 /// push a particular Windows error.
 // @param L the state
 // @param err the error code
@@ -83,7 +93,6 @@ int push_error(lua_State *L) {
 int push_error_code(lua_State *L, int err) {
   return push_error_msg(L,last_error(err));
 }
-
 
 /// push a true value.
 // @param L the state
@@ -107,36 +116,31 @@ int push_bool(lua_State *L, int bval) {
   }
 }
 
-/// throw a Lua error, dumping to the debug monitor.
-// @param L the state
-// @param msg a message
-// @function throw_error
-void throw_error(lua_State *L, const char *msg) {
-  OutputDebugString(last_error(0));
-  OutputDebugString(msg);
-  lua_pushstring(L,msg);
-  lua_error(L);
-}
-
-BOOL call_lua_direct(lua_State *L, Ref ref, int idx, const char *text, int discard) {
+BOOL call_lua_direct(lua_State *L, Ref ref, int idx, const char *text, int flags) {
   BOOL res,ipush = 1;
-  if (idx < 0)
+  // push the function
+  push_ref(L,ref);
+
+  // first argument is optional, it may be a stack reference or an integer
+  if (flags & REF_IDX)
     lua_pushvalue(L,idx);
-  else if (idx > 0)
+  else if (flags & INTEGER)
     lua_pushinteger(L,idx);
   else
     ipush = 0;
-  push_ref(L,ref);
-  if (idx != 0)
-    lua_pushvalue(L,-2);
+
+  // there may be text - if so, we are responsible for cleaning it up!
   if (text != NULL) {
     lua_pushstring(L,text);
     ++ipush;
     free((char*)text);
   }
+
   lua_call(L, ipush, 1);
   res = lua_toboolean(L,-1);
-  if (discard) {
+
+  // optionally dispose of the function
+  if (flags & DISCARD) {
     release_ref(L,ref);
   }
   return res;
@@ -152,7 +156,7 @@ typedef struct {
   Ref ref;
   int idx;
   const char *text;
-  int discard;
+  int flags;
 } LuaCallParms;
 
 #define MY_INTERNAL_LUA_MESSAGE WM_USER+42
@@ -163,7 +167,7 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
   if (uMsg == MY_INTERNAL_LUA_MESSAGE) {
     BOOL res;
     LuaCallParms *P  = (LuaCallParms*)lParam;
-    res = call_lua_direct(P->L,P->ref,P->idx,P->text,P->discard);
+    res = call_lua_direct(P->L,P->ref,P->idx,P->text,P->flags);
     free(P);
     return res;
   }
@@ -195,8 +199,6 @@ void make_message_window() {
 
 static HANDLE hMutex = NULL;
 
-  //~ fprintf(stderr,"lock waiting %d\n",(int)GetCurrentThreadId());
-
 void lock_mutex() {
   WaitForSingleObject(hMutex,INFINITE);
 }
@@ -226,9 +228,10 @@ void release_mutex() {
 // @param ref a reference to the function
 // @param idx a stack index: if greater than zero, pass value to function
 // @param text a string: if not NULL, pass this string to the function
-// @param discard if 1, then remove the reference after calling
+// @param flags if DISCARD remove the reference after calling. If INTEGER, treat
+// idx as an integer. If REF_IDX treat idx as a stack reference.
 // @function call_lua
-BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
+BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int flags) {
   BOOL res;
   if (text) {
     size_t len = strlen(text);
@@ -238,7 +241,7 @@ BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
   }
   if (s_use_mutex) {
     lock_mutex();
-    res = call_lua_direct(L,ref,idx,text,discard);
+    res = call_lua_direct(L,ref,idx,text,flags);
     release_mutex();
   } else {
     LuaCallParms *parms = (LuaCallParms*)malloc(sizeof(LuaCallParms));
@@ -246,7 +249,7 @@ BOOL call_lua(lua_State *L, Ref ref, int idx, const char *text, int discard) {
     parms->ref = ref;
     parms->idx = idx;
     parms->text = text;
-    parms->discard = discard;
+    parms->flags = flags;
     PostMessage(hMessageWin,MY_INTERNAL_LUA_MESSAGE,0,(LPARAM)parms);
     res = FALSE; // for now
   }
