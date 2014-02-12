@@ -2026,7 +2026,7 @@ local function exec_cmd (cmd,arg)
     end
 end
 function winapi.make_dir(dir) return exec_cmd('mkdir',dir) end
-function winapi.remove_dir(dir,tree) return exec_cmd('rmdir '.. (tree and '/S'),dir) end
+function winapi.remove_dir(dir,tree) return exec_cmd('rmdir '..  ((tree and '/S /Q') or ''),dir) end
 function winapi.delete_file_or_dir(file) return exec_cmd('del',file) end
 function winapi.files(mask,subdirs,attrib)
     local flags = '/B '
