@@ -1791,11 +1791,9 @@ static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
     return 1;
   }
 
-  static BOOL raw_read (File *this) {
-    DWORD bytesRead = 0;
-    BOOL res = ReadFile(lcb_handle(this), lcb_buf(this), lcb_bufsz(this), &bytesRead, NULL);
-    lcb_buf(this)[bytesRead] = '\0';
-    return res && bytesRead;
+  static BOOL raw_read (File *this, DWORD *bytesRead) {
+    BOOL res = ReadFile(lcb_handle(this), lcb_buf(this), lcb_bufsz(this), bytesRead, NULL);
+    return res && *bytesRead;
   }
 
   /// read from a file.
@@ -1805,9 +1803,10 @@ static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
   // @function read
   static int l_File_read(lua_State *L) {
     File *this = File_arg(L,1);
+    DWORD bytesRead;
     #line 1299 "winapi.l.c"
-    if (raw_read(this)) {
-      lua_pushstring(L,lcb_buf(this));
+    if (raw_read(this, &bytesRead)) {
+      lua_pushlstring(L,lcb_buf(this), bytesRead);
       return 1;
     } else {
       return push_error(L);
@@ -1817,7 +1816,8 @@ static void File_ctor(lua_State *L, File *this, HANDLE hread, HANDLE hwrite) {
   static void file_reader (File *this) { // background reader thread
     int n;
     do {
-      n = raw_read(this);
+      DWORD len;
+      n = raw_read(this, &len);
       // empty buffer is passed at end - we can discard the callback then.
       lcb_call (this,0,lcb_buf(this),n == 0 ? DISCARD : 0);
     } while (n);
