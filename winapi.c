@@ -24,7 +24,7 @@ A useful set of Windows API functions.
 #include <psapi.h>
 
 
-#define WBUFF 2048
+#define WBUFF (32768 * 2)
 #define MAX_SHOW 100
 #define THREAD_STACK_SIZE (1024 * 1024)
 #define MAX_PROCESSES 1024
