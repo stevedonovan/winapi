@@ -116,8 +116,32 @@ int push_bool(lua_State *L, int bval) {
   }
 }
 
+/// Prints the traceback to stderr.
+// @param L the state
+// @return 1; a boolean true value
+static int traceback(lua_State *L) {
+  // call the Lua function debug.traceback(2)
+  lua_getfield(L, LUA_GLOBALSINDEX, "debug");
+  lua_getfield(L, -1, "traceback");
+  lua_pushvalue(L, 1);
+  lua_pushinteger(L, 2);
+  lua_call(L, 2, 1);
+
+  // print its results to stderr
+  fprintf(stderr, "%s\n", lua_tostring(L, -1));
+
+  // clean up before leaving.
+  // while this may often be used right before teardown, this isn't guaranteed.
+  lua_pop(L, 2);
+
+  return 1;
+}
+
 BOOL call_lua_direct(lua_State *L, Ref ref, int idx, const char *text, int flags) {
   BOOL res,ipush = 1;
+  // push the error handler.
+  lua_pushcfunction(L, traceback);
+
   // push the function
   push_ref(L,ref);
 
@@ -136,7 +160,11 @@ BOOL call_lua_direct(lua_State *L, Ref ref, int idx, const char *text, int flags
     free((char*)text);
   }
 
-  lua_call(L, ipush, 1);
+  int err = lua_pcall(L, ipush, 1, -ipush - 2);
+  if (err) {
+    lua_pop(L, 2);
+    exit(-1);
+  }
   res = lua_toboolean(L,-1);
 
   // optionally dispose of the function
