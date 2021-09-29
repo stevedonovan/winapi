@@ -2635,7 +2635,7 @@ static const char *lua_code_block = ""\
   "    local P,err = winapi.spawn_process(cmd)\n"\
   "    if not P then return nil,err end\n"\
   "    res = P:wait():get_exit_code()\n"\
-  "    f = io.open(tmpfile)\n"\
+  "    f = io.open(tmpfile,'rb')\n"\
   "    out = f:read '*a'\n"\
   "    f:close()\n"\
   "    os.remove(tmpfile)\n"\
@@ -2667,7 +2667,7 @@ static const char *lua_code_block = ""\
   "function winapi.find_window_match(text)\n"\
   "  return winapi.find_window_ex(winapi.make_name_matcher(text))\n"\
   "end\n"\
-  "function winapi.temp_name () return os.getenv('TEMP')..os.tmpname() end\n"\
+  "function winapi.temp_name () return os.getenv('TEMP')..'\\\\'..os.tmpname() end\n"\
   "local function exec_cmd (cmd,arg)\n"\
   "    local res,err = winapi.execute(cmd..' \"'..arg..'\"')\n"\
   "    if res == 0 then return true\n"\
